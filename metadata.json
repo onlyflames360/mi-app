@@ -1,0 +1,8 @@
+{
+  "name": "PPCO - Gestión de Turnos",
+  "description": "Aplicación avanzada para la organización de turnos con notificaciones móviles nativas, confirmación instantánea y gestión automática de reemplazos.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
