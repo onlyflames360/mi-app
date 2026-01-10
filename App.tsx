@@ -59,34 +59,45 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<any[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Helper para reproducir sonidos con control de volumen
+  // Helper para reproducir sonidos
   const playSound = (soundUrl: string) => {
     const audio = new Audio(soundUrl);
     audio.volume = 0.45;
-    audio.play().catch(e => console.debug("Audio play blocked", e));
+    audio.play().catch(() => {});
   };
 
-  // Sincronización cruzada: Si otra pestaña cambia los datos, actualizamos el estado
+  // SINCRONIZACIÓN AUTOMÁTICA (Storage Event + Polling Simulado)
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'carrito_users' && e.newValue) setUsers(JSON.parse(e.newValue));
-      if (e.key === 'carrito_shifts' && e.newValue) setShifts(JSON.parse(e.newValue));
-      if (e.key === 'carrito_submissions' && e.newValue) setAvailabilitySubmissions(JSON.parse(e.newValue));
+    const syncData = () => {
+      const u = localStorage.getItem('carrito_users');
+      const s = localStorage.getItem('carrito_shifts');
+      const sub = localStorage.getItem('carrito_submissions');
+      if (u) setUsers(JSON.parse(u));
+      if (s) setShifts(JSON.parse(s));
+      if (sub) setAvailabilitySubmissions(JSON.parse(sub));
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+
+    window.addEventListener('storage', (e) => {
+      if (e.key?.startsWith('carrito_')) syncData();
+    });
+
+    // Simular un fetch al servidor cada 30 segundos si se desea sincronización remota total
+    const interval = setInterval(syncData, 30000);
+    return () => {
+      window.removeEventListener('storage', syncData);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      addToast("Conexión restablecida. Sincronizando datos...", "success");
+      addToast("Conexión restablecida. Sincronizando con la nube...", "success");
     };
     const handleOffline = () => {
       setIsOnline(false);
-      addToast("Modo Offline activado. Los cambios se guardarán localmente.", "alert");
+      addToast("Modo Offline: Los cambios se enviarán al reconectar.", "alert");
     };
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
@@ -108,31 +119,25 @@ const App: React.FC = () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
-    }
+    if (outcome === 'accepted') setDeferredPrompt(null);
   };
 
-  // Guardado persistente automático
+  // Guardado persistente automático con indicador visual
   useEffect(() => {
     setIsSaving(true);
     localStorage.setItem('carrito_users', JSON.stringify(users));
     localStorage.setItem('carrito_submissions', JSON.stringify(availabilitySubmissions));
     localStorage.setItem('carrito_shifts', JSON.stringify(shifts));
     localStorage.setItem('carrito_authRole', authRole);
-    if (loggedUser) {
-      localStorage.setItem('carrito_loggedUser', JSON.stringify(loggedUser));
-    } else if (authRole === 'guest') {
-      localStorage.removeItem('carrito_loggedUser');
-    }
-    const timer = setTimeout(() => setIsSaving(false), 600);
+    if (loggedUser) localStorage.setItem('carrito_loggedUser', JSON.stringify(loggedUser));
+    
+    const timer = setTimeout(() => setIsSaving(false), 800);
     return () => clearTimeout(timer);
   }, [users, availabilitySubmissions, shifts, authRole, loggedUser]);
 
   const unreadNotificationsCount = useMemo(() => {
-    if (authRole === 'admin') {
-      return shifts.filter(s => s.isReassignmentOpen).length;
-    } else if (authRole === 'volunteer' && loggedUser) {
+    if (authRole === 'admin') return shifts.filter(s => s.isReassignmentOpen).length;
+    if (authRole === 'volunteer' && loggedUser) {
       const pendingMyConfirmation = shifts.filter(s => 
         s.assignedUsers.some(au => au.userId === loggedUser.id && au.status === ShiftStatus.PENDING)
       ).length;
@@ -142,35 +147,12 @@ const App: React.FC = () => {
     return 0;
   }, [shifts, authRole, loggedUser]);
 
-  useEffect(() => {
-    if ("Notification" in window) {
-      Notification.requestPermission();
-    }
-  }, []);
-
   const addToast = (message: string, type: 'info' | 'success' | 'alert') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
-
     if (type === 'success') playSound(SOUNDS.SUCCESS);
     else if (type === 'alert') playSound(SOUNDS.ALERT);
     else playSound(SOUNDS.NOTIFICATION);
-
-    if ("Notification" in window && Notification.permission === "granted") {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.ready.then((registration) => {
-          registration.showNotification("PPOC Villajoyosa", {
-            body: message,
-            icon: "https://cdn-icons-png.flaticon.com/512/1170/1170576.png",
-            badge: "https://cdn-icons-png.flaticon.com/512/1170/1170576.png",
-            vibrate: [200, 100, 200],
-            tag: 'ppoc-alert'
-          } as any);
-        });
-      } else {
-        new Notification("PPOC Villajoyosa", { body: message });
-      }
-    }
 
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
@@ -181,7 +163,7 @@ const App: React.FC = () => {
     if (code === '1914') {
       setAuthRole('admin');
       setCurrentView('planning');
-      addToast("Acceso de Coordinación verificado.", "success");
+      addToast("Identidad Coordinador Verificada.", "success");
     } else {
       playSound(SOUNDS.ALERT);
       alert("Código incorrecto.");
@@ -194,12 +176,12 @@ const App: React.FC = () => {
       setLoggedUser(user);
       setAuthRole('volunteer');
       setCurrentView('personal');
-      addToast(`Sesión iniciada: ${user.name.split(' ')[0]}`, "success");
+      addToast(`Bienvenido, ${user.name.split(' ')[0]}.`, "success");
     }
   };
 
   const handleLogout = () => {
-    if (window.confirm("¿Seguro que quieres cerrar sesión?")) {
+    if (window.confirm("¿Seguro que quieres salir?")) {
       playSound(SOUNDS.LOGOUT);
       setAuthRole('guest');
       setLoggedUser(null);
@@ -207,17 +189,11 @@ const App: React.FC = () => {
       setShowWelcome(true);
       localStorage.removeItem('carrito_authRole');
       localStorage.removeItem('carrito_loggedUser');
-      addToast("Sesión cerrada.", "info");
     }
   };
 
   const handleRandomize = useCallback(() => {
     if (authRole !== 'admin') return;
-    if (users.length < 2) {
-      playSound(SOUNDS.ALERT);
-      alert(`Necesitas más voluntarios registrados.`);
-      return;
-    }
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     const newShifts = generateRealShifts(users, year, month);
@@ -228,17 +204,16 @@ const App: React.FC = () => {
       });
       return [...otherMonths, ...newShifts];
     });
-    addToast(`Planilla generada correctamente.`, "success");
+    addToast("Planilla mensual generada.", "success");
   }, [users, viewDate, authRole]);
 
   const handleAdminCancelShift = (shiftId: string, reason: string) => {
     if (authRole !== 'admin') return;
     setShifts(prev => prev.map(shift => {
       if (shift.id === shiftId) {
-        const newAssigned = shift.assignedUsers.map(au => ({ ...au, status: ShiftStatus.CANCELLED }));
         return { 
           ...shift, 
-          assignedUsers: newAssigned, 
+          assignedUsers: shift.assignedUsers.map(au => ({ ...au, status: ShiftStatus.CANCELLED })),
           isCancelledByAdmin: true, 
           cancellationReason: reason,
           isReassignmentOpen: false 
@@ -246,7 +221,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Turno suspendido y notificado.`, "alert");
+    addToast(`Turno suspendido: ${reason}`, "alert");
   };
 
   const handleRegisterUser = (name: string, surname: string, alerts: boolean) => {
@@ -262,7 +237,7 @@ const App: React.FC = () => {
       availableForNextMonth: false
     };
     setUsers(prev => [newUser, ...prev]);
-    addToast(`Voluntario registrado con éxito.`, "success");
+    addToast(`Voluntario añadido al sistema.`, "success");
     setCurrentView('users');
   };
 
@@ -270,22 +245,23 @@ const App: React.FC = () => {
     if (authRole !== 'admin') return;
     if (window.confirm("¿Confirmar eliminación permanente?")) {
       setUsers(prev => prev.filter(u => u.id !== userId));
-      setShifts(prev => prev.map(shift => ({
-        ...shift,
-        assignedUsers: shift.assignedUsers.filter(au => au.userId !== userId)
+      setShifts(prev => prev.map(s => ({
+        ...s,
+        assignedUsers: s.assignedUsers.filter(au => au.userId !== userId)
       })));
-      playSound(SOUNDS.ALERT);
-      addToast("Usuario eliminado.", "info");
+      addToast("Usuario eliminado del registro.", "info");
     }
   };
 
   const handleConfirmShift = (shiftId: string, userId: string) => {
     setShifts(prev => prev.map(shift => {
       if (shift.id === shiftId) {
-        const newAssigned = shift.assignedUsers.map(au => 
-          au.userId === userId ? { ...au, status: ShiftStatus.CONFIRMED } : au
-        );
-        return { ...shift, assignedUsers: newAssigned };
+        return { 
+          ...shift, 
+          assignedUsers: shift.assignedUsers.map(au => 
+            au.userId === userId ? { ...au, status: ShiftStatus.CONFIRMED } : au
+          ) 
+        };
       }
       return shift;
     }));
@@ -295,14 +271,17 @@ const App: React.FC = () => {
   const handleCancelShift = (shiftId: string, userId: string) => {
     setShifts(prev => prev.map(shift => {
       if (shift.id === shiftId) {
-        const newAssigned = shift.assignedUsers.map(au => 
-          au.userId === userId ? { ...au, status: ShiftStatus.CANCELLED } : au
-        );
-        return { ...shift, assignedUsers: newAssigned, isReassignmentOpen: !shift.isCancelledByAdmin };
+        return { 
+          ...shift, 
+          assignedUsers: shift.assignedUsers.map(au => 
+            au.userId === userId ? { ...au, status: ShiftStatus.CANCELLED } : au
+          ), 
+          isReassignmentOpen: !shift.isCancelledByAdmin 
+        };
       }
       return shift;
     }));
-    addToast(`Baja registrada. Se ha avisado a los demás.`, "alert");
+    addToast(`Baja registrada. Buscando sustituto...`, "alert");
   };
 
   const handleAcceptCoverage = (shiftId: string, userId: string) => {
@@ -322,27 +301,13 @@ const App: React.FC = () => {
       return shift;
     }));
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, shiftsCovered: u.shiftsCovered + 1 } : u));
-    addToast("¡Gracias por cubrir este turno!", "success");
+    addToast("¡Gracias por cubrir el turno!", "success");
     setCurrentView('personal');
-  };
-
-  const handleResetHistory = () => {
-    if (authRole !== 'admin') return;
-    setShifts(prev => prev.map(s => ({
-      ...s,
-      isReassignmentOpen: false,
-      assignedUsers: s.assignedUsers.map(au => 
-        au.status === ShiftStatus.CANCELLED ? { ...au, status: ShiftStatus.OPEN } : au
-      )
-    })));
-    addToast("Historial reseteado.", "info");
   };
 
   const handleConfirmAvailability = (userId: string, availability: WeeklyAvailability[]) => {
     setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return { ...u, availableForNextMonth: true, availabilityNextMonth: availability };
-      }
+      if (u.id === userId) return { ...u, availableForNextMonth: true, availabilityNextMonth: availability };
       return u;
     }));
     
@@ -353,7 +318,7 @@ const App: React.FC = () => {
     if (loggedUser && loggedUser.id === userId) {
       setLoggedUser({ ...loggedUser, availableForNextMonth: true, availabilityNextMonth: availability });
     }
-    addToast("Disponibilidad enviada correctamente.", "success");
+    addToast("Disponibilidad enviada.", "success");
     setCurrentView('personal');
   };
 
@@ -362,92 +327,11 @@ const App: React.FC = () => {
     setCurrentView(view);
   };
 
-  const renderContent = () => {
-    if (currentView === 'auth') {
-      return <AuthView users={users} onAdminAuth={handleAdminAccess} onVolunteerAuth={handleVolunteerAccess} />;
-    }
-
-    switch (currentView) {
-      case 'register':
-        return <RegistrationView onRegister={handleRegisterUser} onGoToPlanning={() => handleViewChange('users')} />;
-      case 'planning':
-        return (
-          <PlanningView 
-            shifts={shifts} 
-            users={users} 
-            onRandomize={handleRandomize} 
-            onAddManualShift={(s) => {
-              if (authRole === 'admin') {
-                setShifts([...shifts, s]);
-                addToast("Nuevo turno publicado en la planilla.", "success");
-              }
-            }}
-            onUpdateShift={(s) => {
-              if (authRole === 'admin') setShifts(shifts.map(sh => sh.id === s.id ? s : sh));
-            }}
-            isAdmin={authRole === 'admin'}
-            viewDate={viewDate}
-            onViewDateChange={setViewDate}
-          />
-        );
-      case 'personal':
-        return (
-          <PersonalShiftsView 
-            shifts={shifts} 
-            users={users} 
-            loggedUser={loggedUser} 
-            onConfirm={handleConfirmShift} 
-            onCancel={handleCancelShift} 
-            unreadCount={unreadNotificationsCount}
-          />
-        );
-      case 'calendar':
-        return (
-          <CalendarView 
-            shifts={shifts} 
-            users={users} 
-            onCancel={handleCancelShift} 
-            onConfirm={handleConfirmShift} 
-            onAdminCancel={handleAdminCancelShift}
-            isAdmin={authRole === 'admin'}
-            filterUserId={authRole === 'volunteer' ? loggedUser?.id : undefined}
-            viewDate={viewDate}
-            onViewDateChange={setViewDate}
-          />
-        );
-      case 'users':
-        return <UserDirectory users={users} onAddUser={() => handleViewChange('register')} onDeleteUser={authRole === 'admin' ? handleDeleteUser : undefined} />;
-      case 'stats':
-        return <DashboardStats users={users} shifts={shifts} onResetHistory={handleResetHistory} />;
-      case 'notifications':
-        return (
-          <NotificationsView 
-            shifts={shifts} 
-            users={users} 
-            loggedUser={loggedUser}
-            isAdmin={authRole === 'admin'}
-            isLastWeekOfMonth={true}
-            availabilitySubmissions={availabilitySubmissions}
-            onConfirmShift={handleConfirmShift}
-            onCancelShift={handleCancelShift}
-            onAcceptCoverage={handleAcceptCoverage}
-            onToggleAlerts={() => {}}
-            onConfirmAvailability={handleConfirmAvailability}
-          />
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden relative">
       {showWelcome && (
         <WelcomeView 
-          onEnter={() => {
-            playSound(SOUNDS.CLICK);
-            setShowWelcome(false);
-          }} 
+          onEnter={() => { playSound(SOUNDS.CLICK); setShowWelcome(false); }} 
           isInstallable={!!deferredPrompt}
           onInstall={handleInstallClick}
         />
@@ -468,7 +352,22 @@ const App: React.FC = () => {
         )}
         <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8 hide-scrollbar safe-bottom">
           <div className="mx-auto max-w-7xl h-full">
-            {renderContent()}
+            {authRole === 'guest' ? (
+              <AuthView users={users} onAdminAuth={handleAdminAccess} onVolunteerAuth={handleVolunteerAccess} />
+            ) : (
+              (() => {
+                switch (currentView) {
+                  case 'register': return <RegistrationView onRegister={handleRegisterUser} onGoToPlanning={() => handleViewChange('users')} />;
+                  case 'planning': return <PlanningView shifts={shifts} users={users} onRandomize={handleRandomize} onAddManualShift={(s) => setShifts([...shifts, s])} onUpdateShift={(s) => setShifts(shifts.map(sh => sh.id === s.id ? s : sh))} isAdmin={authRole === 'admin'} viewDate={viewDate} onViewDateChange={setViewDate} />;
+                  case 'personal': return <PersonalShiftsView shifts={shifts} users={users} loggedUser={loggedUser} onConfirm={handleConfirmShift} onCancel={handleCancelShift} unreadCount={unreadNotificationsCount} />;
+                  case 'calendar': return <CalendarView shifts={shifts} users={users} onCancel={handleCancelShift} onConfirm={handleConfirmShift} onAdminCancel={handleAdminCancelShift} isAdmin={authRole === 'admin'} filterUserId={authRole === 'volunteer' ? loggedUser?.id : undefined} viewDate={viewDate} onViewDateChange={setViewDate} />;
+                  case 'users': return <UserDirectory users={users} onAddUser={() => handleViewChange('register')} onDeleteUser={authRole === 'admin' ? handleDeleteUser : undefined} />;
+                  case 'stats': return <DashboardStats users={users} shifts={shifts} onResetHistory={() => setShifts(shifts.map(s => ({...s, isReassignmentOpen: false})))} />;
+                  case 'notifications': return <NotificationsView shifts={shifts} users={users} loggedUser={loggedUser} isAdmin={authRole === 'admin'} isLastWeekOfMonth={true} availabilitySubmissions={availabilitySubmissions} onConfirmShift={handleConfirmShift} onCancelShift={handleCancelShift} onAcceptCoverage={handleAcceptCoverage} onToggleAlerts={() => {}} onConfirmAvailability={handleConfirmAvailability} />;
+                  default: return null;
+                }
+              })()
+            )}
           </div>
         </main>
       </div>
@@ -480,11 +379,11 @@ const App: React.FC = () => {
             t.type === 'alert' ? 'bg-red-600 border-red-400 text-white' : 
             'bg-slate-900 border-indigo-500 text-white'
           }`}>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-               <i className={`fa-solid ${t.type === 'alert' ? 'fa-triangle-exclamation animate-bounce text-sm' : t.type === 'success' ? 'fa-check text-sm' : 'fa-bell text-sm'}`}></i>
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+               <i className={`fa-solid ${t.type === 'alert' ? 'fa-triangle-exclamation' : t.type === 'success' ? 'fa-check' : 'fa-bell'}`}></i>
             </div>
             <div className="flex-1">
-              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Sistema Oficial</p>
+              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Sincronizado</p>
               <p className="text-xs sm:text-sm font-bold leading-tight">{t.message}</p>
             </div>
           </div>

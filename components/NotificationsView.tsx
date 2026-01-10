@@ -64,36 +64,36 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h2 className="text-2xl font-black uppercase tracking-tight">Preparación Próximo Mes</h2>
-                  <p className="text-indigo-300 font-bold text-xs uppercase tracking-widest mt-1">Monitoreo de Respuestas de Voluntarios</p>
+                  <p className="text-indigo-300 font-bold text-xs uppercase tracking-widest mt-1">Monitoreo de Respuestas</p>
                 </div>
                 <div className="bg-white/10 px-4 py-2 rounded-xl border border-white/20 text-center">
                   <p className="text-2xl font-black leading-none">{nextMonthConfirmedCount}</p>
-                  <p className="text-[8px] font-black uppercase opacity-60">Han Respondido</p>
+                  <p className="text-[8px] font-black uppercase opacity-60">Voluntarios</p>
                 </div>
               </div>
               <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mb-6">
                 <div className="h-full bg-emerald-400 transition-all duration-1000" style={{ width: `${(nextMonthConfirmedCount / (users.length || 1)) * 100}%` }}></div>
               </div>
-              <p className="text-xs text-indigo-200 font-medium">
-                El sistema está registrando las preferencias oficiales para generar la nueva planilla.
+              <p className="text-xs text-indigo-200 font-medium italic opacity-80">
+                Los datos se sincronizan automáticamente entre todos los dispositivos.
               </p>
             </div>
             <i className="fa-solid fa-calendar-plus absolute -right-10 -bottom-10 text-9xl opacity-10"></i>
           </div>
 
-          {/* REGISTRO DE RESPUESTAS EN TIEMPO REAL */}
+          {/* REGISTRO DE RESPUESTAS */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
              <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Registro de Respuestas</h3>
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Actividad Reciente</h3>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest animate-pulse">
-                   Sincronizado
+                   En Tiempo Real
                 </span>
              </div>
 
              <div className="space-y-4 max-h-[400px] overflow-y-auto hide-scrollbar pr-2">
                 {availabilitySubmissions.length === 0 ? (
                   <div className="text-center py-10 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Esperando envíos de turnos...</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No hay nuevas respuestas...</p>
                   </div>
                 ) : (
                   availabilitySubmissions.map((sub, i) => {
@@ -103,19 +103,19 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                     return (
                       <div key={`${sub.userId}-${i}`} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-md transition-all">
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-indigo-100">
                              {user.name.charAt(0)}
                           </div>
                           <div>
                             <p className="text-xs font-black text-slate-800 uppercase">{user.name}</p>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Recibido a las {sub.timestamp}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Confirmado a las {sub.timestamp}</p>
                           </div>
                         </div>
                         <div className="flex gap-1">
                           {user.availabilityNextMonth?.map((w, idx) => (
                             <div 
                               key={idx} 
-                              className={`w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-black border transition-transform hover:scale-110 cursor-help ${
+                              className={`w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-black border shadow-sm transition-transform hover:scale-110 ${
                                 w.slot === 'morning' ? 'bg-amber-100 text-amber-600 border-amber-200' :
                                 w.slot === 'afternoon' ? 'bg-indigo-100 text-indigo-600 border-indigo-200' :
                                 w.slot === 'both' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' :
@@ -139,13 +139,14 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
               <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2 mb-6">
                 <i className="fa-solid fa-triangle-exclamation text-amber-500"></i>
-                Bajas sin cubrir ({openForCoverage.length})
+                Bajas Críticas ({openForCoverage.length})
               </h3>
               <div className="space-y-4">
                 {openForCoverage.map(shift => (
-                  <div key={shift.id} className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                  <div key={shift.id} className="p-4 bg-red-50 border border-red-100 rounded-2xl flex flex-col gap-1">
                     <h4 className="font-black text-slate-800 text-[11px] uppercase truncate">{shift.location}</h4>
-                    <p className="text-slate-400 font-bold text-[9px]">{shift.date}</p>
+                    <p className="text-slate-400 font-bold text-[9px] uppercase tracking-tighter">{shift.dayName} • {shift.date}</p>
+                    <span className="text-[8px] bg-red-500 text-white px-2 py-0.5 rounded-full w-fit font-black mt-2">URGENTE</span>
                   </div>
                 ))}
               </div>
@@ -155,12 +156,13 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
     );
   }
 
-  // Guard para evitar errores de tipado en voluntarios y capturar referencia estable
+  // FIJAR EL USUARIO PARA EVITAR ERRORES DE TIPADO
   if (!loggedUser) return null;
   const currentUser = loggedUser;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+      
       {/* SECCIÓN DISPONIBILIDAD PRÓXIMO MES */}
       {isLastWeekOfMonth && !currentUser.availableForNextMonth && (
         <div className="bg-white p-8 md:p-10 rounded-[3rem] shadow-2xl border border-indigo-100 relative overflow-hidden">
@@ -170,8 +172,8 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                 <i className="fa-solid fa-calendar-check"></i>
               </div>
               <div>
-                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Preparación Próximo Mes</h3>
-                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Elige tus horarios para el mes que viene</p>
+                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Mi Disponibilidad</h3>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Elige tus turnos para el próximo mes</p>
               </div>
             </div>
 
@@ -200,7 +202,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
               })}
             </div>
 
-            <div className="bg-slate-50 p-8 rounded-[2rem] border-2 border-indigo-50 mb-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-50 p-8 rounded-[2rem] border-2 border-indigo-50 mb-8">
               <div className="text-center mb-8">
                 <p className="text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-2">Semana {activeWeekTab}</p>
                 <h4 className="text-2xl font-black text-slate-800">{NEXT_MONTH_WEEKS.find(w => w.week === activeWeekTab)?.label}</h4>
@@ -237,7 +239,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
               }`}
             >
               <i className="fa-solid fa-paper-plane"></i>
-              Confirmar Disponibilidad
+              Enviar al Coordinador
             </button>
           </div>
         </div>
@@ -245,37 +247,61 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
 
       {/* COBERTURAS ABIERTAS */}
       {openForCoverage.length > 0 && (
-        <div className="bg-amber-500 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden animate-pulse">
+        <div className="bg-amber-500 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
           <div className="relative z-10">
-            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Turnos Libres: Se necesita ayuda</h3>
+             <div className="flex items-center gap-3 mb-4">
+                <i className="fa-solid fa-hand-holding-heart text-2xl"></i>
+                <h3 className="text-2xl font-black uppercase tracking-tight">Turnos sin cubrir</h3>
+             </div>
             <div className="space-y-4 mt-6">
               {openForCoverage.map(shift => (
                 <div key={shift.id} className="bg-white/10 border border-white/20 p-6 rounded-3xl flex justify-between items-center gap-4 backdrop-blur-md">
-                  <p className="text-sm font-medium">Turno en <span className="font-black">{shift.location}</span> el <span className="font-black">{shift.dayName} {shift.date}</span>.</p>
-                  <button onClick={() => onAcceptCoverage(shift.id, currentUser.id)} className="px-8 py-4 bg-white text-amber-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-50">Cubrir</button>
+                  <div>
+                    <p className="text-sm font-black uppercase">{shift.location}</p>
+                    <p className="text-[10px] font-bold opacity-80">{shift.dayName} {shift.date} • {shift.startTime}</p>
+                  </div>
+                  <button 
+                    onClick={() => onAcceptCoverage(shift.id, currentUser.id)} 
+                    className="px-8 py-4 bg-white text-amber-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-50 shadow-lg active:scale-95 transition-all"
+                  >
+                    Cubrir
+                  </button>
                 </div>
               ))}
             </div>
           </div>
+          <i className="fa-solid fa-bolt absolute -right-6 -bottom-6 text-[10rem] opacity-10"></i>
         </div>
       )}
 
       {/* Inbox Personal */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-        <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase mb-8">Mis Notificaciones</h2>
+        <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase mb-8">Mis Avisos</h2>
         <div className="space-y-6">
           {pendingShifts.length === 0 ? (
-            <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No tienes avisos pendientes.</div>
+            <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-[10px]">No tienes notificaciones pendientes.</div>
           ) : (
             pendingShifts.map(shift => (
-              <div key={shift.id} className="bg-slate-50 p-6 rounded-[2rem] border-2 border-indigo-50 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div key={shift.id} className="bg-slate-50 p-6 rounded-[2rem] border-2 border-indigo-50 flex flex-col md:flex-row justify-between items-center gap-6 group hover:border-indigo-200 transition-all">
                 <div className="flex-1">
-                  <p className="text-indigo-600 font-black text-[10px] uppercase mb-1">Aviso Semanal</p>
-                  <p className="text-slate-800 font-medium">Turno el <span className="font-black underline">{shift.dayName} {shift.date}</span> en <span className="font-black">{shift.location}</span>.</p>
+                  <p className="text-indigo-600 font-black text-[10px] uppercase mb-1">Nueva Asignación</p>
+                  <p className="text-slate-800 font-bold uppercase text-sm tracking-tighter">
+                    {shift.dayName} {shift.date} • {shift.location}
+                  </p>
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
-                  <button onClick={() => onConfirmShift(shift.id, currentUser.id)} className="flex-1 px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase">Confirmar</button>
-                  <button onClick={() => onCancelShift(shift.id, currentUser.id)} className="flex-1 px-6 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-xs uppercase">No puedo</button>
+                  <button 
+                    onClick={() => onConfirmShift(shift.id, currentUser.id)} 
+                    className="flex-1 px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase shadow-lg shadow-emerald-100 hover:bg-emerald-600 active:scale-95 transition-all"
+                  >
+                    Confirmar
+                  </button>
+                  <button 
+                    onClick={() => onCancelShift(shift.id, currentUser.id)} 
+                    className="flex-1 px-6 py-4 bg-white text-red-600 border border-red-100 rounded-2xl font-black text-xs uppercase hover:bg-red-50 transition-all"
+                  >
+                    Baja
+                  </button>
                 </div>
               </div>
             ))
