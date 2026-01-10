@@ -12,7 +12,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    // Ajuste del límite de tamaño para evitar advertencias en librerías pesadas como Recharts
+    // Ajuste del límite de tamaño de fragmento (chunk) solicitado
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {

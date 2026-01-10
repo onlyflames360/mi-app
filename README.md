@@ -1,58 +1,47 @@
 
 # 🛒 Carrito - Gestión de Voluntarios PPOC
 
-**Carrito** es una aplicación web moderna y profesional diseñada para organizar turnos mensuales y semanales de grandes grupos de voluntarios (aprox. 100 personas). Está optimizada para funcionar como una **PWA (Progressive Web App)**, lo que permite su instalación en dispositivos **iOS y Android** como si fuera una aplicación nativa.
+**Carrito** es una aplicación web moderna y profesional diseñada para organizar turnos mensuales y semanales.
 
-## ✨ Características Principales
+## 🚀 Despliegue en Firebase Hosting
 
-- 📅 **Planificación Inteligente**: Generación automática de turnos basada en la disponibilidad de los voluntarios.
-- 🔔 **Sistema de Avisos Críticos**: Notificaciones instantáneas (Toasts) y centro de avisos para cubrir bajas urgentes.
-- 👤 **Panel del Voluntario**: Confirmación de asistencia con un solo toque y gestión de perfil personal.
-- 🛠️ **Panel del Coordinador**: Control total sobre la planilla, registro de nuevos voluntarios y estadísticas de cumplimiento.
-- 📱 **Mobile First**: Diseño adaptado a "Safe Areas" de móviles modernos (Notch) y optimizado para toques.
-- 🔒 **Acceso Seguro**: Código de coordinación para funciones administrativas.
+Para subir esta aplicación a producción en Firebase, sigue estos pasos:
 
-## 🚀 Instalación Local
-
-Para ejecutar este proyecto en tu ordenador, sigue estos pasos:
-
-1. **Clona el repositorio**:
+1. **Instala las herramientas de Firebase** (si no lo has hecho):
    ```bash
-   git clone https://github.com/tu-usuario/carrito-ppoc.git
-   cd carrito-ppoc
+   npm install -g firebase-tools
    ```
 
-2. **Instala las dependencias**:
+2. **Inicia sesión**:
    ```bash
-   npm install
+   firebase login
    ```
 
-3. **Inicia el servidor de desarrollo**:
+3. **Construye la aplicación**:
+   Vite generará los archivos optimizados en la carpeta `/dist`.
    ```bash
-   npm run dev
+   npm run build
    ```
 
-4. Abre tu navegador en `http://localhost:5173`.
+4. **Despliega**:
+   ```bash
+   firebase deploy
+   ```
 
-## 🔑 Códigos de Acceso (Demo)
+## 🛠️ Configuración de Seguridad (Firebase Console)
 
-- **Código de Coordinador**: `1914`
-- **Acceso Voluntario**: Busca cualquier nombre registrado en el sistema para entrar como voluntario.
+Recuerda configurar las **Reglas de la Realtime Database** en tu consola de Firebase para permitir la lectura/escritura:
 
-## 🛠️ Tecnologías Utilizadas
-
-- **React 19** + **TypeScript**
-- **Vite** (Build tool de última generación)
-- **Tailwind CSS** (Diseño moderno y responsive)
-- **Recharts** (Estadísticas visuales)
-- **FontAwesome** (Iconografía)
+```json
+{
+  "rules": {
+    ".read": "true",
+    ".write": "true"
+  }
+}
+```
+*Nota: Para un entorno de producción real, se recomienda restringir estas reglas mediante Firebase Auth.*
 
 ## 📱 Instalación en Móvil (PWA)
 
-1. Despliega la app en un servidor HTTPS (ej. Vercel).
-2. Abre la URL en tu móvil.
-3. **iOS**: Pulsa "Compartir" -> "Añadir a la pantalla de inicio".
-4. **Android**: Pulsa los tres puntos -> "Instalar aplicación".
-
----
-Desarrollado con ❤️ para la gestión de voluntarios.
+Una vez desplegada en Firebase (ej. `https://tu-proyecto.web.app`), abre la URL en tu móvil y selecciona "Añadir a pantalla de inicio".

@@ -1,23 +1,35 @@
 
 import { createClient } from '@vercel/edge-config';
 
-// Nota: En un entorno de cliente (Vite), Edge Config requiere que el token esté disponible.
-// Si no se configura la variable de entorno, fallará silenciosamente.
-const client = process.env.EDGE_CONFIG ? createClient(process.env.EDGE_CONFIG) : null;
+// Vite utiliza import.meta.env para variables de entorno
+// Fix: Use type assertion to access Vite's environment variables and resolve the 'env' does not exist on type 'ImportMeta' error.
+const connectionString = (import.meta as any).env?.VITE_EDGE_CONFIG || "";
+const client = connectionString ? createClient(connectionString) : null;
 
-export async function getConfigData() {
+export interface RemoteConfig {
+  coordinador?: {
+    nombre: string;
+    estado: string;
+  };
+  evento?: {
+    titulo: string;
+    hora: string;
+  };
+}
+
+export async function getConfigData(): Promise<RemoteConfig | null> {
   if (!client) {
-    console.warn('Edge Config no configurado. Usando datos locales.');
+    console.warn('Edge Config no configurado (VITE_EDGE_CONFIG vacía).');
     return null;
   }
   
   try {
-    const coordinador = await client.get('coordinador');
+    const config = await client.get('coordinador');
     const evento = await client.get('evento');
     
     return {
-      coordinador: coordinador as { nombre: string; estado: string } | null,
-      evento: evento as { titulo: string; hora: string } | null
+      coordinador: config as any,
+      evento: evento as any
     };
   } catch (error) {
     console.error('Error leyendo configuración de Vercel:', error);

@@ -14,13 +14,15 @@ import RegistrationView from './components/RegistrationView';
 import AuthView from './components/AuthView';
 import WelcomeView from './components/WelcomeView';
 import { db } from './lib/firebase';
-import { ref, onValue, set, update, push, child } from 'firebase/database';
+import { ref, onValue, set, update, push } from 'firebase/database';
+import { getConfigData, RemoteConfig } from './lib/config';
 
 const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
 
   // Sesión persistente local (Auth)
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
@@ -41,7 +43,12 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [availabilitySubmissions, setAvailabilitySubmissions] = useState<{userId: string, timestamp: string}[]>([]);
-  const [currentView, setCurrentView] = useState<ViewType>('auth');
+  const [currentView, setCurrentView] = useState<ViewType>(() => {
+    const savedRole = localStorage.getItem('carrito_authRole');
+    if (savedRole === 'admin') return 'planning';
+    if (savedRole === 'volunteer') return 'personal';
+    return 'auth';
+  });
   const [toasts, setToasts] = useState<any[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
 
@@ -51,6 +58,18 @@ const App: React.FC = () => {
     audio.play().catch(() => {});
   };
 
+  // --- CARGA DE CONFIGURACIÓN REMOTA (VERCEL) ---
+  useEffect(() => {
+    const fetchConfig = async () => {
+      const data = await getConfigData();
+      if (data) setRemoteConfig(data);
+    };
+    fetchConfig();
+    // Re-chequear cada 5 minutos
+    const interval = setInterval(fetchConfig, 300000);
+    return () => clearInterval(interval);
+  }, []);
+
   // --- SINCRONIZACIÓN FIREBASE (TIEMPO REAL) ---
   useEffect(() => {
     const usersRef = ref(db, 'users');
@@ -59,47 +78,36 @@ const App: React.FC = () => {
 
     setIsLoading(true);
 
-    // Escuchar Usuarios
     const unsubUsers = onValue(usersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
         const usersList = Object.values(data) as User[];
         setUsers(usersList);
-        
-        // Actualizar sesión si el usuario logueado cambió en el servidor
         if (loggedUser) {
           const updated = usersList.find(u => u.id === loggedUser.id);
-          if (updated) setLoggedUser(updated);
+          if (updated) {
+            setLoggedUser(updated);
+            localStorage.setItem('carrito_loggedUser', JSON.stringify(updated));
+          }
         }
       }
       setIsLoading(false);
     });
 
-    // Escuchar Turnos
     const unsubShifts = onValue(shiftsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        setShifts(Object.values(data) as Shift[]);
-      }
+      if (data) setShifts(Object.values(data) as Shift[]);
     });
 
-    // Escuchar Envíos de Disponibilidad
     const unsubSubs = onValue(subsRef, (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        const subsList = Object.values(data) as {userId: string, timestamp: string}[];
-        setAvailabilitySubmissions(subsList.reverse().slice(0, 20));
-      }
+      if (data) setAvailabilitySubmissions((Object.values(data) as any).reverse().slice(0, 20));
     });
 
-    return () => {
-      unsubUsers();
-      unsubShifts();
-      unsubSubs();
-    };
+    return () => { unsubUsers(); unsubShifts(); unsubSubs(); };
   }, []);
 
-  // Guardado de estado de sesión local
+  // Gestión de estado local para Auth
   useEffect(() => {
     localStorage.setItem('carrito_authRole', authRole);
     if (loggedUser) localStorage.setItem('carrito_loggedUser', JSON.stringify(loggedUser));
@@ -120,7 +128,7 @@ const App: React.FC = () => {
     if (code === '1914') {
       setAuthRole('admin');
       setCurrentView('planning');
-      addToast("Identidad Coordinador Verificada.", "success");
+      addToast("Coordinador: " + (remoteConfig?.coordinador?.nombre || "Identificado"), "success");
     } else {
       playSound(SOUNDS.ALERT);
       alert("Código incorrecto.");
@@ -151,30 +159,18 @@ const App: React.FC = () => {
 
   const handleConfirmShift = async (shiftId: string, userId: string) => {
     setIsSaving(true);
-    const updatedShifts = shifts.map(shift => {
-      if (shift.id === shiftId) {
-        return { 
-          ...shift, 
-          assignedUsers: shift.assignedUsers.map(au => 
-            au.userId === userId ? { ...au, status: ShiftStatus.CONFIRMED } : au
-          ) 
-        };
-      }
-      return shift;
-    });
-
-    try {
-      // En Firebase guardamos el objeto completo o por ID
-      const targetShift = updatedShifts.find(s => s.id === shiftId);
-      if (targetShift) {
-        await set(ref(db, `shifts/${shiftId}`), targetShift);
-        addToast("Turno confirmado en la nube.", "success");
-      }
-    } catch (e) {
-      addToast("Error al sincronizar.", "alert");
-    } finally {
-      setIsSaving(false);
+    const targetShift = shifts.find(s => s.id === shiftId);
+    if (targetShift) {
+      const updated = {
+        ...targetShift,
+        assignedUsers: targetShift.assignedUsers.map(au => 
+          au.userId === userId ? { ...au, status: ShiftStatus.CONFIRMED } : au
+        )
+      };
+      await set(ref(db, `shifts/${shiftId}`), updated);
+      addToast("Turno confirmado.", "success");
     }
+    setIsSaving(false);
   };
 
   const handleCancelShift = async (shiftId: string, userId: string) => {
@@ -189,7 +185,7 @@ const App: React.FC = () => {
         isReassignmentOpen: !targetShift.isCancelledByAdmin
       };
       await set(ref(db, `shifts/${shiftId}`), updated);
-      addToast("Baja registrada y sincronizada.", "alert");
+      addToast("Baja registrada.", "alert");
     }
     setIsSaving(false);
   };
@@ -211,14 +207,10 @@ const App: React.FC = () => {
         assignedUsers: newAssigned,
         isReassignmentOpen: newAssigned.some(au => au.status === ShiftStatus.CANCELLED)
       };
-      
       const user = users.find(u => u.id === userId);
-      if (user) {
-        await update(ref(db, `users/${userId}`), { shiftsCovered: user.shiftsCovered + 1 });
-      }
-      
+      if (user) await update(ref(db, `users/${userId}`), { shiftsCovered: user.shiftsCovered + 1 });
       await set(ref(db, `shifts/${shiftId}`), updated);
-      addToast("Cobertura confirmada.", "success");
+      addToast("Cobertura aceptada.", "success");
       setCurrentView('personal');
     }
     setIsSaving(false);
@@ -228,15 +220,9 @@ const App: React.FC = () => {
     setIsSaving(true);
     const now = new Date();
     const timestamp = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    await update(ref(db, `users/${userId}`), { 
-      availableForNextMonth: true, 
-      availabilityNextMonth: availability 
-    });
-    
+    await update(ref(db, `users/${userId}`), { availableForNextMonth: true, availabilityNextMonth: availability });
     await push(ref(db, 'submissions'), { userId, timestamp });
-    
-    addToast("Preferencias enviadas a coordinación.", "success");
+    addToast("Disponibilidad enviada.", "success");
     setCurrentView('personal');
     setIsSaving(false);
   };
@@ -245,15 +231,10 @@ const App: React.FC = () => {
     if (authRole !== 'admin') return;
     setIsSaving(true);
     const newShifts = generateRealShifts(users, viewDate.getFullYear(), viewDate.getMonth());
-    
-    // Guardar múltiples turnos en Firebase
     const updates: any = {};
-    newShifts.forEach(s => {
-      updates[`/shifts/${s.id}`] = s;
-    });
-    
+    newShifts.forEach(s => updates[`/shifts/${s.id}`] = s);
     await update(ref(db), updates);
-    addToast("Nueva planilla mensual publicada.", "success");
+    addToast("Planilla mensual generada.", "success");
     setIsSaving(false);
   };
 
@@ -272,9 +253,9 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white font-black uppercase tracking-widest text-xs">Sincronizando con la nube...</p>
+        <div className="text-center animate-in fade-in duration-700">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+          <p className="text-white font-black uppercase tracking-[0.3em] text-[10px]">Sincronizando PPOC Cloud...</p>
         </div>
       </div>
     );
@@ -321,18 +302,35 @@ const App: React.FC = () => {
                   case 'personal': return <PersonalShiftsView shifts={shifts} users={users} loggedUser={loggedUser} onConfirm={handleConfirmShift} onCancel={handleCancelShift} unreadCount={unreadNotificationsCount} />;
                   case 'calendar': return <CalendarView shifts={shifts} users={users} onCancel={handleCancelShift} onConfirm={handleConfirmShift} onAdminCancel={async (id, r) => {
                     const target = shifts.find(s => s.id === id);
-                    if (target) {
-                      await set(ref(db, `shifts/${id}`), { ...target, isCancelledByAdmin: true, cancellationReason: r, isReassignmentOpen: false });
-                      addToast("Turno suspendido.", "alert");
-                    }
+                    if (target) await set(ref(db, `shifts/${id}`), { ...target, isCancelledByAdmin: true, cancellationReason: r, isReassignmentOpen: false });
+                    addToast("Turno suspendido.", "alert");
                   }} isAdmin={authRole === 'admin'} filterUserId={authRole === 'volunteer' ? loggedUser?.id : undefined} viewDate={viewDate} onViewDateChange={setViewDate} />;
                   case 'users': return <UserDirectory users={users} onDeleteUser={async (id) => {
                     if (window.confirm("¿Eliminar voluntario?")) {
                       await set(ref(db, `users/${id}`), null);
-                      addToast("Usuario eliminado.", "info");
+                      addToast("Registro eliminado.", "info");
                     }
                   }} />;
-                  case 'stats': return <DashboardStats users={users} shifts={shifts} onResetHistory={() => {}} />;
+                  case 'stats': return (
+                    <div className="space-y-6">
+                      {remoteConfig && (
+                        <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-2xl text-white flex flex-col md:flex-row items-center justify-between gap-6 border-4 border-indigo-800 relative overflow-hidden">
+                           <div className="relative z-10">
+                              <p className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.3em] mb-2">Sincronización Global (Vercel)</p>
+                              <h3 className="text-2xl font-black uppercase">{remoteConfig.evento?.titulo || "Gestión de Turnos"}</h3>
+                              <p className="text-sm font-bold opacity-70 mt-1">{remoteConfig.evento?.hora || "Sincronización Activa"}</p>
+                           </div>
+                           <div className="bg-white/10 px-6 py-4 rounded-2xl border border-white/20 text-center relative z-10">
+                              <p className="text-[9px] font-black uppercase text-indigo-200 mb-1">Coordinador Principal</p>
+                              <p className="text-lg font-black">{remoteConfig.coordinador?.nombre || "N/A"}</p>
+                              <p className="text-[9px] font-black bg-indigo-500 text-white px-2 py-0.5 rounded-full mt-2 uppercase">{remoteConfig.coordinador?.estado || "Online"}</p>
+                           </div>
+                           <i className="fa-solid fa-tower-broadcast absolute -right-6 -bottom-6 text-9xl text-white/5 rotate-12"></i>
+                        </div>
+                      )}
+                      <DashboardStats users={users} shifts={shifts} onResetHistory={() => {}} />
+                    </div>
+                  );
                   case 'notifications': return <NotificationsView shifts={shifts} users={users} loggedUser={loggedUser} isAdmin={authRole === 'admin'} isLastWeekOfMonth={true} availabilitySubmissions={availabilitySubmissions} onConfirmShift={handleConfirmShift} onCancelShift={handleCancelShift} onAcceptCoverage={handleAcceptCoverage} onToggleAlerts={() => {}} onConfirmAvailability={handleConfirmAvailability} />;
                   default: return null;
                 }
@@ -353,7 +351,7 @@ const App: React.FC = () => {
                <i className={`fa-solid ${t.type === 'alert' ? 'fa-triangle-exclamation' : t.type === 'success' ? 'fa-check' : 'fa-bell'}`}></i>
             </div>
             <div className="flex-1">
-              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Nube Protegida</p>
+              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Sistema Seguro</p>
               <p className="text-xs sm:text-sm font-bold leading-tight">{t.message}</p>
             </div>
           </div>
