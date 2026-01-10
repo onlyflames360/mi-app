@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sesión persistente: Comprobamos si hay un usuario ya logueado para no mostrar la bienvenida
+  // Sesión persistente
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
     const savedRole = localStorage.getItem('carrito_authRole');
     return !savedRole || savedRole === 'guest';
@@ -49,7 +49,6 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Vista inicial inteligente: Si ya está logueado, ir a su panel principal
   const [currentView, setCurrentView] = useState<ViewType>(() => {
     const savedRole = localStorage.getItem('carrito_authRole');
     if (savedRole === 'admin') return 'planning';
@@ -60,21 +59,21 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<any[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Helper para reproducir sonidos
+  // Helper para reproducir sonidos con control de volumen
   const playSound = (soundUrl: string) => {
     const audio = new Audio(soundUrl);
-    audio.volume = 0.5;
+    audio.volume = 0.45;
     audio.play().catch(e => console.debug("Audio play blocked", e));
   };
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      addToast("Conexión recuperada. Los datos están sincronizados.", "success");
+      addToast("Conexión restablecida. Sincronizando datos...", "success");
     };
     const handleOffline = () => {
       setIsOnline(false);
-      addToast("Sin conexión. Los cambios se guardarán localmente.", "alert");
+      addToast("Modo Offline activado. Los cambios se guardarán localmente.", "alert");
     };
 
     window.addEventListener('online', handleOnline);
@@ -115,7 +114,7 @@ const App: React.FC = () => {
     } else if (authRole === 'guest') {
       localStorage.removeItem('carrito_loggedUser');
     }
-    const timer = setTimeout(() => setIsSaving(false), 800);
+    const timer = setTimeout(() => setIsSaving(false), 600);
     return () => clearTimeout(timer);
   }, [users, availabilitySubmissions, shifts, authRole, loggedUser]);
 
@@ -132,26 +131,21 @@ const App: React.FC = () => {
     return 0;
   }, [shifts, authRole, loggedUser]);
 
-  // Solicitar permisos de notificación al inicio
   useEffect(() => {
     if ("Notification" in window) {
       Notification.requestPermission();
     }
   }, []);
 
-  // Función de aviso mejorada para funcionar con el móvil bloqueado (Service Worker)
   const addToast = (message: string, type: 'info' | 'success' | 'alert') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
 
-    // Reproducir sonido según tipo
     if (type === 'success') playSound(SOUNDS.SUCCESS);
     else if (type === 'alert') playSound(SOUNDS.ALERT);
     else playSound(SOUNDS.NOTIFICATION);
 
-    // Si tenemos permiso, enviar una notificación real del sistema
     if ("Notification" in window && Notification.permission === "granted") {
-      // Intentar usar el Service Worker para que salga en pantalla bloqueada
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.ready.then((registration) => {
           registration.showNotification("PPOC Villajoyosa", {
@@ -163,24 +157,23 @@ const App: React.FC = () => {
           } as any);
         });
       } else {
-        // Fallback si el SW no está activo
         new Notification("PPOC Villajoyosa", { body: message });
       }
     }
 
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4000);
+    }, 4500);
   };
 
   const handleAdminAccess = (code: string) => {
     if (code === '1914') {
       setAuthRole('admin');
       setCurrentView('planning');
-      addToast("Acceso de Coordinador activo permanentemente", "success");
+      addToast("Identidad de Coordinador verificada.", "success");
     } else {
       playSound(SOUNDS.ALERT);
-      alert("Código de seguridad incorrecto");
+      alert("Código incorrecto. Acceso denegado.");
     }
   };
 
@@ -190,12 +183,12 @@ const App: React.FC = () => {
       setLoggedUser(user);
       setAuthRole('volunteer');
       setCurrentView('personal');
-      addToast(`Sesión iniciada. Tu cuenta permanecerá abierta.`, "success");
+      addToast(`Bienvenido de nuevo, ${user.name.split(' ')[0]}.`, "success");
     }
   };
 
   const handleLogout = () => {
-    if (window.confirm("¿Seguro que quieres cerrar la sesión? Dejarás de recibir avisos visuales directos.")) {
+    if (window.confirm("¿Seguro que quieres salir?")) {
       playSound(SOUNDS.LOGOUT);
       setAuthRole('guest');
       setLoggedUser(null);
@@ -203,7 +196,7 @@ const App: React.FC = () => {
       setShowWelcome(true);
       localStorage.removeItem('carrito_authRole');
       localStorage.removeItem('carrito_loggedUser');
-      addToast("Sesión cerrada correctamente", "info");
+      addToast("Sesión cerrada.", "info");
     }
   };
 
@@ -211,7 +204,7 @@ const App: React.FC = () => {
     if (authRole !== 'admin') return;
     if (users.length < 2) {
       playSound(SOUNDS.ALERT);
-      alert(`Necesitas al menos 2 voluntarios registrados para generar una planilla.`);
+      alert(`Registra al menos 2 voluntarios antes de repartir turnos.`);
       return;
     }
     const year = viewDate.getFullYear();
@@ -224,7 +217,7 @@ const App: React.FC = () => {
       });
       return [...otherMonths, ...newShifts];
     });
-    addToast(`Planilla de ${viewDate.toLocaleDateString('es-ES', {month: 'long'})} generada`, "success");
+    addToast(`Planilla de ${viewDate.toLocaleDateString('es-ES', {month: 'long'})} lista.`, "success");
   }, [users, viewDate, authRole]);
 
   const handleAdminCancelShift = (shiftId: string, reason: string) => {
@@ -242,7 +235,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Turno suspendido y notificado`, "alert");
+    addToast(`Turno suspendido: ${reason}`, "alert");
   };
 
   const handleRegisterUser = (name: string, surname: string, alerts: boolean) => {
@@ -258,20 +251,20 @@ const App: React.FC = () => {
       availableForNextMonth: false
     };
     setUsers(prev => [newUser, ...prev]);
-    addToast(`Nuevo voluntario registrado`, "success");
+    addToast(`Voluntario añadido al registro oficial.`, "success");
     setCurrentView('users');
   };
 
   const handleDeleteUser = (userId: string) => {
     if (authRole !== 'admin') return;
-    if (window.confirm("¿Estás seguro de que quieres eliminar a este voluntario permanentemente?")) {
+    if (window.confirm("¿Confirmar eliminación permanente?")) {
       setUsers(prev => prev.filter(u => u.id !== userId));
       setShifts(prev => prev.map(shift => ({
         ...shift,
         assignedUsers: shift.assignedUsers.filter(au => au.userId !== userId)
       })));
       playSound(SOUNDS.ALERT);
-      addToast("Usuario eliminado del sistema", "info");
+      addToast("Usuario eliminado.", "info");
     }
   };
 
@@ -285,7 +278,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast("Asistencia confirmada para el turno", "success");
+    addToast("Asistencia confirmada.", "success");
   };
 
   const handleCancelShift = (shiftId: string, userId: string) => {
@@ -298,7 +291,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Baja registrada. Se ha avisado al resto para cubrir el hueco.`, "alert");
+    addToast(`Baja registrada. Buscando sustitutos...`, "alert");
   };
 
   const handleAcceptCoverage = (shiftId: string, userId: string) => {
@@ -318,7 +311,7 @@ const App: React.FC = () => {
       return shift;
     }));
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, shiftsCovered: u.shiftsCovered + 1 } : u));
-    addToast("Has cubierto el turno. ¡Gracias por tu ayuda!", "success");
+    addToast("Gracias por cubrir este turno.", "success");
     setCurrentView('personal');
   };
 
@@ -331,7 +324,7 @@ const App: React.FC = () => {
         au.status === ShiftStatus.CANCELLED ? { ...au, status: ShiftStatus.OPEN } : au
       )
     })));
-    addToast("Historial de incidencias reseteado", "info");
+    addToast("Historial reseteado.", "info");
   };
 
   const handleConfirmAvailability = (userId: string, availability: WeeklyAvailability[]) => {
@@ -349,13 +342,12 @@ const App: React.FC = () => {
     if (loggedUser && loggedUser.id === userId) {
       setLoggedUser({ ...loggedUser, availableForNextMonth: true, availabilityNextMonth: availability });
     }
-    addToast("Disponibilidad para el próximo mes enviada", "success");
+    addToast("Disponibilidad enviada.", "success");
     setCurrentView('personal');
   };
 
-  // Función para manejar cambios de vista con sonido sutil
   const handleViewChange = (view: ViewType) => {
-    playSound(SOUNDS.CLICK);
+    playSound(SOUNDS.POP);
     setCurrentView(view);
   };
 
@@ -376,7 +368,7 @@ const App: React.FC = () => {
             onAddManualShift={(s) => {
               if (authRole === 'admin') {
                 setShifts([...shifts, s]);
-                addToast("Nuevo turno manual creado", "success");
+                addToast("Nuevo turno publicado.", "success");
               }
             }}
             onUpdateShift={(s) => {
@@ -480,8 +472,8 @@ const App: React.FC = () => {
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/20 flex items-center justify-center shrink-0">
                <i className={`fa-solid ${t.type === 'alert' ? 'fa-triangle-exclamation animate-bounce text-sm' : t.type === 'success' ? 'fa-check text-sm' : 'fa-bell text-sm'}`}></i>
             </div>
-            <div>
-              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Aviso del Sistema</p>
+            <div className="flex-1">
+              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Sistema Oficial</p>
               <p className="text-xs sm:text-sm font-bold leading-tight">{t.message}</p>
             </div>
           </div>

@@ -9,13 +9,14 @@ export const LOCATIONS = [
   'LA CREUETA'
 ];
 
-// Efectos de sonido UI
+// Efectos de sonido UI de alta calidad
 export const SOUNDS = {
   SUCCESS: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
   ALERT: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3',
   NOTIFICATION: 'https://assets.mixkit.co/active_storage/sfx/2357/2357-preview.mp3',
   CLICK: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
-  LOGOUT: 'https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3'
+  LOGOUT: 'https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3',
+  POP: 'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3'
 };
 
 export const MOCK_USERS: User[] = [];
@@ -25,8 +26,6 @@ export const MOCK_USERS: User[] = [];
  */
 export const generateRealShifts = (users: User[], year: number, month: number): Shift[] => {
   const shifts: Shift[] = [];
-  
-  // Días en el mes solicitado
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   
   const getWeekOfMonth = (day: number) => {
@@ -44,29 +43,25 @@ export const generateRealShifts = (users: User[], year: number, month: number): 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month, d);
     const dayOfWeek = dateObj.getDay();
-    // Formato local para evitar desfases de zona horaria
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
     const weekNum = getWeekOfMonth(d);
 
     const dailyConfig: {time: string, end: string, loc: string}[] = [];
     
-    // Configuración estándar de puntos
-    if (dayOfWeek === 2) { // Martes
+    if (dayOfWeek === 2) { 
       dailyConfig.push({time: '10:30', end: '12:30', loc: 'LA BARBERA'});
       dailyConfig.push({time: '17:30', end: '19:30', loc: 'EL CENSAL'});
-    } else if (dayOfWeek === 4) { // Jueves
+    } else if (dayOfWeek === 4) { 
       dailyConfig.push({time: '10:30', end: '12:30', loc: 'CENTRO SALUD'});
       dailyConfig.push({time: '17:30', end: '19:30', loc: 'LA BARBERA'});
-    } else if (dayOfWeek === 6) { // Sábado
+    } else if (dayOfWeek === 6) { 
       dailyConfig.push({time: '10:30', end: '12:00', loc: 'Dr. ESQUERDO'});
       dailyConfig.push({time: '12:00', end: '13:30', loc: 'EL CENSAL'});
     }
 
     dailyConfig.forEach(config => {
       const type = getDayType(config.time);
-      
-      // Filtramos voluntarios por disponibilidad si la tienen
       const preferredResponders = users.filter(u => {
         const weekAvail = u.availabilityNextMonth?.find(a => a.week === weekNum);
         return u.availableForNextMonth && (weekAvail?.slot === type || weekAvail?.slot === 'both');
@@ -77,8 +72,6 @@ export const generateRealShifts = (users: User[], year: number, month: number): 
       const backup = [...comodines.sort(() => 0.5 - Math.random())];
       
       const selected: string[] = [];
-      
-      // Siempre intentamos asignar al menos 2 personas, pero el sistema escala
       while (selected.length < 2) {
         if (pool.length > 0) {
           selected.push(pool.pop()!.id);
