@@ -46,7 +46,10 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
   const openForCoverage = shifts.filter(s => s.isReassignmentOpen);
 
   const handleUpdateSlot = (slot: AvailabilitySlot) => {
-    setTempAvailability(prev => prev.map(w => w.week === activeWeekTab ? { ...w, slot } : w));
+    setActiveWeekTab(prev => {
+      setTempAvailability(current => current.map(w => w.week === prev ? { ...w, slot } : w));
+      return prev;
+    });
   };
 
   const isAllFilled = tempAvailability.every(w => w.slot !== 'empty');
@@ -74,7 +77,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                 <div className="h-full bg-emerald-400 transition-all duration-1000" style={{ width: `${(nextMonthConfirmedCount / (users.length || 1)) * 100}%` }}></div>
               </div>
               <p className="text-xs text-indigo-200 font-medium italic opacity-80">
-                Sincronización activa: Los datos se actualizan en todos los dispositivos.
+                Sincronización activa: Los datos se actualizan en todos los dispositivos vía Vercel.
               </p>
             </div>
             <i className="fa-solid fa-calendar-plus absolute -right-10 -bottom-10 text-9xl opacity-10"></i>
@@ -156,8 +159,11 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
 
   // FIJAR EL USUARIO PARA EVITAR ERRORES DE TIPADO TS18047
   if (!loggedUser) return null;
-  const currentUserId = loggedUser.id;
-  const currentUserAvailable = loggedUser.availableForNextMonth;
+  
+  // Capturamos el usuario en una constante para asegurar el narrowing dentro de los cierres
+  const currentUser = loggedUser;
+  const currentUserId = currentUser.id;
+  const currentUserAvailable = currentUser.availableForNextMonth;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -294,7 +300,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                   </button>
                   <button 
                     onClick={() => onCancelShift(shift.id, currentUserId)} 
-                    className="flex-1 px-6 py-4 bg-white text-red-600 border border-red-100 rounded-2xl font-black text-xs uppercase hover:bg-red-50 transition-all"
+                    className="flex-1 px-6 py-4 bg-white text-red-600 border border-red-100 rounded-2xl font-black text-xs uppercase hover:bg-red-100 transition-all"
                   >
                     Baja
                   </button>
