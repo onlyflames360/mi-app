@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'ppoc-v2';
+const CACHE_NAME = 'ppoc-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -36,6 +36,43 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Manejo de eventos PUSH (para recibir notificaciones con pantalla bloqueada)
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : { title: 'PPOC Alerta', body: 'Tienes una nueva actualización en tus turnos.' };
+  
+  const options = {
+    body: data.body,
+    icon: 'https://cdn-icons-png.flaticon.com/512/1170/1170576.png',
+    badge: 'https://cdn-icons-png.flaticon.com/512/1170/1170576.png',
+    vibrate: [100, 50, 100],
+    data: {
+      dateOfArrival: Date.now(),
+      primaryKey: '1'
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Manejo de clics en las notificaciones
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === '/' && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
+});
+
 // Estrategia de Fetch Híbrida
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -64,7 +101,7 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       }).catch(() => {
-        // Silenciar errores de red en segundo plano
+        // Fallback silencioso
       });
 
       return cachedResponse || fetchPromise;

@@ -8,7 +8,7 @@ export enum ShiftStatus {
 
 export type AuthRole = 'guest' | 'admin' | 'volunteer';
 
-export type AvailabilitySlot = 'morning' | 'afternoon' | 'both' | 'none';
+export type AvailabilitySlot = 'morning' | 'afternoon' | 'both' | 'none' | 'empty';
 
 export interface WeeklyAvailability {
   week: number;
@@ -42,8 +42,8 @@ export interface Shift {
     status: ShiftStatus;
   }[];
   isReassignmentOpen: boolean;
-  isCancelledByAdmin?: boolean; // Nueva propiedad
-  cancellationReason?: string; // Nueva propiedad
+  isCancelledByAdmin?: boolean;
+  cancellationReason?: string;
 }
 
 export type ViewType = 'calendar' | 'planning' | 'users' | 'stats' | 'notifications' | 'personal' | 'register' | 'auth';

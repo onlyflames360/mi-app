@@ -8,6 +8,7 @@ interface NotificationsViewProps {
   loggedUser: User | null;
   isAdmin: boolean;
   isLastWeekOfMonth: boolean;
+  availabilitySubmissions?: {userId: string, timestamp: string}[];
   onConfirmShift: (shiftId: string, userId: string) => void;
   onCancelShift: (shiftId: string, userId: string) => void;
   onAcceptCoverage: (shiftId: string, userId: string) => void;
@@ -22,12 +23,20 @@ const NEXT_MONTH_WEEKS = [
   { week: 4, label: '22 Feb - 28 Feb' },
 ];
 
+const SLOT_LABELS: Record<string, string> = {
+  morning: 'Mañana',
+  afternoon: 'Tarde',
+  both: 'Ambos',
+  none: 'No puedo',
+  empty: 'Sin seleccionar'
+};
+
 const NotificationsView: React.FC<NotificationsViewProps> = ({ 
-  shifts, users, loggedUser, isAdmin, isLastWeekOfMonth, onConfirmShift, onCancelShift, onAcceptCoverage, onToggleAlerts, onConfirmAvailability 
+  shifts, users, loggedUser, isAdmin, isLastWeekOfMonth, availabilitySubmissions = [], onConfirmShift, onCancelShift, onAcceptCoverage, onToggleAlerts, onConfirmAvailability 
 }) => {
   const [activeWeekTab, setActiveWeekTab] = useState(1);
   const [tempAvailability, setTempAvailability] = useState<WeeklyAvailability[]>(
-    NEXT_MONTH_WEEKS.map(w => ({ ...w, slot: 'none' }))
+    NEXT_MONTH_WEEKS.map(w => ({ ...w, slot: 'empty' }))
   );
 
   const pendingShifts = loggedUser 
@@ -40,61 +49,117 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
     setTempAvailability(prev => prev.map(w => w.week === activeWeekTab ? { ...w, slot } : w));
   };
 
-  const isAllFilled = tempAvailability.every(w => w.slot !== 'none');
+  const isAllFilled = tempAvailability.every(w => w.slot !== 'empty');
 
   if (isAdmin) {
-    const nextMonthConfirmed = users.filter(u => u.availableForNextMonth).length;
+    const nextMonthConfirmedCount = users.filter(u => u.availableForNextMonth).length;
+    
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
         <div className="lg:col-span-2 space-y-8">
-          {isLastWeekOfMonth && (
-            <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
-              <div className="relative z-10">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h2 className="text-2xl font-black uppercase tracking-tight">Preparación Próximo Mes</h2>
-                    <p className="text-indigo-300 font-bold text-xs uppercase tracking-widest mt-1">Disponibilidad Detallada Recibida</p>
-                  </div>
-                  <div className="bg-white/10 px-4 py-2 rounded-xl border border-white/20 text-center">
-                    <p className="text-2xl font-black leading-none">{nextMonthConfirmed}</p>
-                    <p className="text-[8px] font-black uppercase opacity-60">Voluntarios</p>
-                  </div>
+          
+          {/* PANEL DE PREPARACIÓN PRÓXIMO MES (ADMIN) */}
+          <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-2xl font-black uppercase tracking-tight">Preparación Próximo Mes</h2>
+                  <p className="text-indigo-300 font-bold text-xs uppercase tracking-widest mt-1">Monitoreo de Respuestas de Voluntarios</p>
                 </div>
-                <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mb-6">
-                  <div className="h-full bg-emerald-400" style={{ width: `${(nextMonthConfirmed / (users.length || 1)) * 100}%` }}></div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="p-4 bg-white/5 rounded-2xl border border-white/10">
-                    <p className="text-[10px] font-black uppercase opacity-50 mb-1">Estado</p>
-                    <p className="text-sm font-bold">Consulte el panel de Planificación para ver los horarios específicos.</p>
-                  </div>
+                <div className="bg-white/10 px-4 py-2 rounded-xl border border-white/20 text-center">
+                  <p className="text-2xl font-black leading-none">{nextMonthConfirmedCount}</p>
+                  <p className="text-[8px] font-black uppercase opacity-60">Han Respondido</p>
                 </div>
               </div>
+              <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mb-6">
+                <div className="h-full bg-emerald-400 transition-all duration-1000" style={{ width: `${(nextMonthConfirmedCount / (users.length || 1)) * 100}%` }}></div>
+              </div>
+              <p className="text-xs text-indigo-200 font-medium">
+                El sistema está registrando las preferencias en español para la generación de la nueva planilla.
+              </p>
             </div>
-          )}
+            <i className="fa-solid fa-calendar-plus absolute -right-10 -bottom-10 text-9xl opacity-10"></i>
+          </div>
+
+          {/* REGISTRO DE RESPUESTAS EN TIEMPO REAL */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-8">Centro de Control de Avisos</h2>
-            <div className="space-y-6">
-              <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
+             <div className="flex items-center justify-between mb-8">
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Registro de Respuestas</h3>
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest animate-pulse">
+                   En Tiempo Real
+                </span>
+             </div>
+
+             <div className="space-y-4 max-h-[400px] overflow-y-auto hide-scrollbar pr-2">
+                {availabilitySubmissions.length === 0 ? (
+                  <div className="text-center py-10 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Esperando envíos de turnos...</p>
+                  </div>
+                ) : (
+                  availabilitySubmissions.map((sub, i) => {
+                    const user = users.find(u => u.id === sub.userId);
+                    if (!user) return null;
+                    
+                    return (
+                      <div key={`${sub.userId}-${i}`} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group hover:bg-white hover:shadow-md transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black text-xs">
+                             {user.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-800 uppercase">{user.name}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Recibido a las {sub.timestamp}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          {user.availabilityNextMonth?.map((w, idx) => (
+                            <div 
+                              key={idx} 
+                              className={`w-7 h-7 rounded-md flex items-center justify-center text-[9px] font-black border transition-transform hover:scale-110 cursor-help ${
+                                w.slot === 'morning' ? 'bg-amber-100 text-amber-600 border-amber-200' :
+                                w.slot === 'afternoon' ? 'bg-indigo-100 text-indigo-600 border-indigo-200' :
+                                w.slot === 'both' ? 'bg-emerald-100 text-emerald-600 border-emerald-200' :
+                                'bg-red-100 text-red-600 border-red-200'
+                              }`} 
+                              title={`Semana ${w.week}: ${SLOT_LABELS[w.slot] || w.slot}`}
+                            >
+                              {w.week}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+             </div>
+             
+             <div className="mt-6 flex items-center gap-4 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 overflow-x-auto">
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Leyenda:</span>
+                <div className="flex items-center gap-3">
+                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-amber-400"></div><span className="text-[8px] font-bold text-slate-500 uppercase">Mañana</span></div>
+                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-indigo-500"></div><span className="text-[8px] font-bold text-slate-500 uppercase">Tarde</span></div>
+                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-emerald-500"></div><span className="text-[8px] font-bold text-slate-500 uppercase">Ambos</span></div>
+                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-red-500"></div><span className="text-[8px] font-bold text-slate-500 uppercase">No puedo</span></div>
+                </div>
+             </div>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+              <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2 mb-6">
                 <i className="fa-solid fa-triangle-exclamation text-amber-500"></i>
                 Turnos Sin Cubrir ({openForCoverage.length})
               </h3>
-              {openForCoverage.length === 0 ? (
-                <div className="p-10 text-center bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
-                  <p className="text-slate-400 font-bold italic uppercase text-xs">Todo cubierto.</p>
-                </div>
-              ) : (
-                openForCoverage.map(shift => (
-                  <div key={shift.id} className="p-6 bg-red-50 border-2 border-red-100 rounded-3xl flex justify-between items-center">
-                    <div>
-                      <h4 className="font-black text-slate-800 text-lg uppercase">{shift.location}</h4>
-                      <p className="text-slate-500 font-bold text-xs">{shift.dayName}, {shift.date} • {shift.startTime}</p>
-                    </div>
+              <div className="space-y-4">
+                {openForCoverage.map(shift => (
+                  <div key={shift.id} className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                    <h4 className="font-black text-slate-800 text-[11px] uppercase truncate">{shift.location}</h4>
+                    <p className="text-slate-400 font-bold text-[9px]">{shift.date}</p>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                ))}
+              </div>
+           </div>
         </div>
       </div>
     );
@@ -102,7 +167,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-      {/* SECCIÓN DETALLADA: DISPONIBILIDAD PRÓXIMO MES */}
+      {/* SECCIÓN DETALLADA: DISPONIBILIDAD PRÓXIMO MES (VOLUNTARIO) */}
       {isLastWeekOfMonth && !loggedUser?.availableForNextMonth && (
         <div className="bg-white p-8 md:p-10 rounded-[3rem] shadow-2xl border border-indigo-100 relative overflow-hidden">
           <div className="relative z-10">
@@ -111,31 +176,36 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                 <i className="fa-solid fa-calendar-check"></i>
               </div>
               <div>
-                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Disponibilidad Próximo Mes</h3>
-                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Selecciona tus preferencias por semana</p>
+                <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Preparación Próximo Mes</h3>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Define tus turnos elegidos para el mes que viene</p>
               </div>
             </div>
 
-            {/* TABS DE SEMANAS */}
             <div className="flex flex-wrap gap-2 mb-8 bg-slate-50 p-2 rounded-2xl">
-              {NEXT_MONTH_WEEKS.map(w => (
-                <button
-                  key={w.week}
-                  onClick={() => setActiveWeekTab(w.week)}
-                  className={`flex-1 min-w-[100px] py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                    activeWeekTab === w.week 
-                      ? 'bg-indigo-600 text-white shadow-lg' 
-                      : tempAvailability.find(ta => ta.week === w.week)?.slot !== 'none' 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-white text-slate-400 hover:bg-slate-100'
-                  }`}
-                >
-                  Semana {w.week}
-                </button>
-              ))}
+              {NEXT_MONTH_WEEKS.map(w => {
+                const isSelected = activeWeekTab === w.week;
+                const slotValue = tempAvailability.find(ta => ta.week === w.week)?.slot;
+                const isFilled = slotValue !== 'empty';
+                const isNone = slotValue === 'none';
+
+                return (
+                  <button
+                    key={w.week}
+                    onClick={() => setActiveWeekTab(w.week)}
+                    className={`flex-1 min-w-[100px] py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border-2 ${
+                      isSelected 
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' 
+                        : isFilled 
+                          ? (isNone ? 'bg-red-50 text-red-600 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200') 
+                          : 'bg-white text-slate-400 border-transparent hover:bg-slate-100'
+                    }`}
+                  >
+                    Semana {w.week}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* CONTENIDO DE SEMANA SELECCIONADA */}
             <div className="bg-slate-50 p-8 rounded-[2rem] border-2 border-indigo-50 mb-8 animate-in fade-in zoom-in-95 duration-200">
               <div className="text-center mb-8">
                 <p className="text-xs font-black text-indigo-500 uppercase tracking-[0.2em] mb-2">Semana {activeWeekTab}</p>
@@ -173,10 +243,12 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
               }`}
             >
               <i className="fa-solid fa-paper-plane"></i>
-              Confirmar mi disponibilidad mensual
+              Enviar Turnos Elegidos a Coordinación
             </button>
             {!isAllFilled && (
-              <p className="text-center text-[10px] font-bold text-slate-400 uppercase mt-4">Debes completar todas las semanas antes de enviar</p>
+              <p className="text-center text-[10px] font-bold text-slate-400 uppercase mt-4">
+                Por favor, elige tu horario para cada semana antes de enviar
+              </p>
             )}
           </div>
         </div>
@@ -213,8 +285,8 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                   <p className="text-slate-800 font-medium">Tienes un turno el <span className="font-black underline">{shift.dayName} {shift.date}</span> en <span className="font-black">{shift.location}</span>.</p>
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={() => onConfirmShift(shift.id, loggedUser!.id)} className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase">Sí</button>
-                  <button onClick={() => onCancelShift(shift.id, loggedUser!.id)} className="px-6 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-xs uppercase">No</button>
+                  <button onClick={() => onConfirmShift(shift.id, loggedUser.id)} className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase">Sí</button>
+                  <button onClick={() => onCancelShift(shift.id, loggedUser.id)} className="px-6 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-xs uppercase">No</button>
                 </div>
               </div>
             ))

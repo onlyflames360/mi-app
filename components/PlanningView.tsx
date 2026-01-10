@@ -95,7 +95,7 @@ const PlanningView: React.FC<PlanningViewProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       
-      {/* SELECTOR DE MES DE PLANIFICACIÓN - ESTILO BIENVENIDA */}
+      {/* SELECTOR DE MES DE PLANIFICACIÓN */}
       <div className="bg-slate-900 p-8 rounded-[2.5rem] shadow-xl text-white flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
         <div className="relative z-10">
           <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1">Panel de Control</p>
@@ -208,31 +208,31 @@ const PlanningView: React.FC<PlanningViewProps> = ({
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-2xl font-black uppercase tracking-tight text-slate-800">Crear Turno Manual</h3>
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[100] flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-[2rem] sm:rounded-[3rem] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col">
+            <div className="p-6 sm:p-8 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-800">Crear Turno Manual</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-300 hover:text-red-500 transition-colors">
                 <i className="fa-solid fa-circle-xmark text-2xl"></i>
               </button>
             </div>
             
-            <form onSubmit={handleSaveShift} className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha del Turno</label>
+            <form onSubmit={handleSaveShift} className="p-5 sm:p-8 space-y-4 sm:space-y-6 overflow-y-auto hide-scrollbar flex-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Fecha del Turno</label>
                   <input 
                     required 
                     type="date" 
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-700"
+                    className="w-full p-3 sm:p-4 bg-slate-50 border-2 border-slate-100 rounded-xl sm:rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-700 text-sm"
                     value={newShiftData.date}
                     onChange={(e) => setNewShiftData({...newShiftData, date: e.target.value})}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ubicación</label>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Ubicación</label>
                   <select 
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-700"
+                    className="w-full p-3 sm:p-4 bg-slate-50 border-2 border-slate-100 rounded-xl sm:rounded-2xl focus:border-indigo-500 outline-none font-bold text-slate-700 text-sm"
                     value={newShiftData.location}
                     onChange={(e) => setNewShiftData({...newShiftData, location: e.target.value})}
                   >
@@ -241,47 +241,47 @@ const PlanningView: React.FC<PlanningViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Hora Inicio</label>
+              <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Hora Inicio</label>
                   <input 
                     type="time" 
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                    className="w-full p-3 sm:p-4 bg-slate-50 border-2 border-slate-100 rounded-xl sm:rounded-2xl focus:border-indigo-500 outline-none font-bold text-sm"
                     value={newShiftData.startTime}
                     onChange={(e) => setNewShiftData({...newShiftData, startTime: e.target.value})}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Hora Fin</label>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Hora Fin</label>
                   <input 
                     type="time" 
-                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-indigo-500 outline-none font-bold"
+                    className="w-full p-3 sm:p-4 bg-slate-50 border-2 border-slate-100 rounded-xl sm:rounded-2xl focus:border-indigo-500 outline-none font-bold text-sm"
                     value={newShiftData.endTime}
                     onChange={(e) => setNewShiftData({...newShiftData, endTime: e.target.value})}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Asignar Voluntarios ({newShiftData.selectedUsers.length})</label>
-                <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4">
-                  <div className="relative mb-4">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Asignar Voluntarios ({newShiftData.selectedUsers.length})</label>
+                <div className="bg-slate-50 border-2 border-slate-100 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                  <div className="relative mb-3">
                     <i className="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
                     <input 
                       type="text" 
                       placeholder="Buscar voluntario..."
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+                      className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-black"
                       value={userSearch}
                       onChange={(e) => setUserSearch(e.target.value)}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto hide-scrollbar">
+                  <div className="grid grid-cols-2 gap-2 max-h-32 sm:max-h-40 overflow-y-auto hide-scrollbar">
                     {filteredUsersForAdd.length > 0 ? filteredUsersForAdd.map(u => (
                       <button
                         key={u.id}
                         type="button"
                         onClick={() => toggleUserSelection(u.id)}
-                        className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase tracking-tighter text-left transition-all truncate ${
+                        className={`p-2.5 rounded-lg border-2 text-[9px] font-black uppercase tracking-tighter text-left transition-all truncate ${
                           newShiftData.selectedUsers.includes(u.id)
                             ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
                             : 'bg-white border-slate-100 text-slate-500 hover:border-indigo-200'
@@ -290,24 +290,24 @@ const PlanningView: React.FC<PlanningViewProps> = ({
                         {u.name}
                       </button>
                     )) : (
-                      <p className="col-span-2 text-center text-[10px] text-slate-400 py-4 italic uppercase">No hay voluntarios registrados</p>
+                      <p className="col-span-2 text-center text-[9px] text-slate-400 py-3 italic uppercase">No hay voluntarios</p>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4 pb-6 sm:pb-0">
                 <button 
                   type="button" 
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-200 transition-all"
+                  className="w-full py-4 bg-slate-100 text-slate-500 rounded-xl sm:rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-slate-200 transition-all order-2 sm:order-1"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
                   disabled={!newShiftData.date || newShiftData.selectedUsers.length === 0}
-                  className={`flex-[2] py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-xl ${
+                  className={`w-full py-4 rounded-xl sm:rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-xl order-1 sm:order-2 ${
                     !newShiftData.date || newShiftData.selectedUsers.length === 0
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'

@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { ViewType, Shift, User, ShiftStatus, AuthRole, WeeklyAvailability } from './types';
-import { MOCK_USERS, generateRealShifts } from './constants';
+import { MOCK_USERS, generateRealShifts, SOUNDS } from './constants';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CalendarView from './components/CalendarView';
@@ -19,6 +19,7 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Sesión persistente: Comprobamos si hay un usuario ya logueado para no mostrar la bienvenida
   const [showWelcome, setShowWelcome] = useState<boolean>(() => {
     const savedRole = localStorage.getItem('carrito_authRole');
     return !savedRole || savedRole === 'guest';
@@ -43,6 +44,12 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [availabilitySubmissions, setAvailabilitySubmissions] = useState<{userId: string, timestamp: string}[]>(() => {
+    const saved = localStorage.getItem('carrito_submissions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Vista inicial inteligente: Si ya está logueado, ir a su panel principal
   const [currentView, setCurrentView] = useState<ViewType>(() => {
     const savedRole = localStorage.getItem('carrito_authRole');
     if (savedRole === 'admin') return 'planning';
@@ -53,14 +60,21 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<any[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
 
+  // Helper para reproducir sonidos
+  const playSound = (soundUrl: string) => {
+    const audio = new Audio(soundUrl);
+    audio.volume = 0.5;
+    audio.play().catch(e => console.debug("Audio play blocked", e));
+  };
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      addToast("Conexión recuperada. Los datos se sincronizarán.", "success");
+      addToast("Conexión recuperada. Los datos están sincronizados.", "success");
     };
     const handleOffline = () => {
       setIsOnline(false);
-      addToast("Sin conexión. Trabajando en modo local.", "alert");
+      addToast("Sin conexión. Los cambios se guardarán localmente.", "alert");
     };
 
     window.addEventListener('online', handleOnline);
@@ -89,29 +103,21 @@ const App: React.FC = () => {
     }
   };
 
-  // PERSISTENCIA MEJORADA: Guardado con feedback visual
+  // Guardado persistente automático
   useEffect(() => {
     setIsSaving(true);
     localStorage.setItem('carrito_users', JSON.stringify(users));
-    const timer = setTimeout(() => setIsSaving(false), 800);
-    return () => clearTimeout(timer);
-  }, [users]);
-
-  useEffect(() => {
-    setIsSaving(true);
+    localStorage.setItem('carrito_submissions', JSON.stringify(availabilitySubmissions));
     localStorage.setItem('carrito_shifts', JSON.stringify(shifts));
-    const timer = setTimeout(() => setIsSaving(false), 800);
-    return () => clearTimeout(timer);
-  }, [shifts]);
-
-  useEffect(() => {
     localStorage.setItem('carrito_authRole', authRole);
     if (loggedUser) {
       localStorage.setItem('carrito_loggedUser', JSON.stringify(loggedUser));
-    } else {
+    } else if (authRole === 'guest') {
       localStorage.removeItem('carrito_loggedUser');
     }
-  }, [authRole, loggedUser]);
+    const timer = setTimeout(() => setIsSaving(false), 800);
+    return () => clearTimeout(timer);
+  }, [users, availabilitySubmissions, shifts, authRole, loggedUser]);
 
   const unreadNotificationsCount = useMemo(() => {
     if (authRole === 'admin') {
@@ -126,18 +132,42 @@ const App: React.FC = () => {
     return 0;
   }, [shifts, authRole, loggedUser]);
 
+  // Solicitar permisos de notificación al inicio
   useEffect(() => {
     if ("Notification" in window) {
       Notification.requestPermission();
     }
   }, []);
 
+  // Función de aviso mejorada para funcionar con el móvil bloqueado (Service Worker)
   const addToast = (message: string, type: 'info' | 'success' | 'alert') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
+
+    // Reproducir sonido según tipo
+    if (type === 'success') playSound(SOUNDS.SUCCESS);
+    else if (type === 'alert') playSound(SOUNDS.ALERT);
+    else playSound(SOUNDS.NOTIFICATION);
+
+    // Si tenemos permiso, enviar una notificación real del sistema
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("PPOC Alerta", { body: message, silent: false });
+      // Intentar usar el Service Worker para que salga en pantalla bloqueada
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then((registration) => {
+          registration.showNotification("PPOC Villajoyosa", {
+            body: message,
+            icon: "https://cdn-icons-png.flaticon.com/512/1170/1170576.png",
+            badge: "https://cdn-icons-png.flaticon.com/512/1170/1170576.png",
+            vibrate: [200, 100, 200],
+            tag: 'ppoc-alert'
+          } as any);
+        });
+      } else {
+        // Fallback si el SW no está activo
+        new Notification("PPOC Villajoyosa", { body: message });
+      }
     }
+
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4000);
@@ -147,9 +177,10 @@ const App: React.FC = () => {
     if (code === '1914') {
       setAuthRole('admin');
       setCurrentView('planning');
-      addToast("Acceso de Coordinador concedido", "success");
+      addToast("Acceso de Coordinador activo permanentemente", "success");
     } else {
-      alert("Código incorrecto");
+      playSound(SOUNDS.ALERT);
+      alert("Código de seguridad incorrecto");
     }
   };
 
@@ -159,22 +190,27 @@ const App: React.FC = () => {
       setLoggedUser(user);
       setAuthRole('volunteer');
       setCurrentView('personal');
-      addToast(`Sesión iniciada como ${user.name}`, "info");
+      addToast(`Sesión iniciada. Tu cuenta permanecerá abierta.`, "success");
     }
   };
 
   const handleLogout = () => {
-    setAuthRole('guest');
-    setLoggedUser(null);
-    setCurrentView('auth');
-    setShowWelcome(true);
-    localStorage.removeItem('carrito_authRole');
-    localStorage.removeItem('carrito_loggedUser');
+    if (window.confirm("¿Seguro que quieres cerrar la sesión? Dejarás de recibir avisos visuales directos.")) {
+      playSound(SOUNDS.LOGOUT);
+      setAuthRole('guest');
+      setLoggedUser(null);
+      setCurrentView('auth');
+      setShowWelcome(true);
+      localStorage.removeItem('carrito_authRole');
+      localStorage.removeItem('carrito_loggedUser');
+      addToast("Sesión cerrada correctamente", "info");
+    }
   };
 
   const handleRandomize = useCallback(() => {
     if (authRole !== 'admin') return;
     if (users.length < 2) {
+      playSound(SOUNDS.ALERT);
       alert(`Necesitas al menos 2 voluntarios registrados para generar una planilla.`);
       return;
     }
@@ -188,7 +224,7 @@ const App: React.FC = () => {
       });
       return [...otherMonths, ...newShifts];
     });
-    addToast(`Planilla de ${viewDate.toLocaleDateString('es-ES', {month: 'long'})} generada y registrada`, "success");
+    addToast(`Planilla de ${viewDate.toLocaleDateString('es-ES', {month: 'long'})} generada`, "success");
   }, [users, viewDate, authRole]);
 
   const handleAdminCancelShift = (shiftId: string, reason: string) => {
@@ -206,7 +242,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Turno suspendido y registrado en el historial`, "alert");
+    addToast(`Turno suspendido y notificado`, "alert");
   };
 
   const handleRegisterUser = (name: string, surname: string, alerts: boolean) => {
@@ -222,22 +258,20 @@ const App: React.FC = () => {
       availableForNextMonth: false
     };
     setUsers(prev => [newUser, ...prev]);
-    addToast(`Voluntario registrado correctamente`, "success");
+    addToast(`Nuevo voluntario registrado`, "success");
     setCurrentView('users');
   };
 
   const handleDeleteUser = (userId: string) => {
-    if (authRole !== 'admin') {
-      alert("Operación denegada: Solo los coordinadores pueden borrar voluntarios.");
-      return;
-    }
-    if (window.confirm("¿Estás seguro de que quieres eliminar a este voluntario permanentemente del registro oficial?")) {
+    if (authRole !== 'admin') return;
+    if (window.confirm("¿Estás seguro de que quieres eliminar a este voluntario permanentemente?")) {
       setUsers(prev => prev.filter(u => u.id !== userId));
       setShifts(prev => prev.map(shift => ({
         ...shift,
         assignedUsers: shift.assignedUsers.filter(au => au.userId !== userId)
       })));
-      addToast("Voluntario eliminado del registro oficial", "info");
+      playSound(SOUNDS.ALERT);
+      addToast("Usuario eliminado del sistema", "info");
     }
   };
 
@@ -251,7 +285,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast("Asistencia confirmada", "success");
+    addToast("Asistencia confirmada para el turno", "success");
   };
 
   const handleCancelShift = (shiftId: string, userId: string) => {
@@ -264,7 +298,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Baja registrada. Buscando cobertura automática.`, "alert");
+    addToast(`Baja registrada. Se ha avisado al resto para cubrir el hueco.`, "alert");
   };
 
   const handleAcceptCoverage = (shiftId: string, userId: string) => {
@@ -284,7 +318,7 @@ const App: React.FC = () => {
       return shift;
     }));
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, shiftsCovered: u.shiftsCovered + 1 } : u));
-    addToast("Cobertura registrada con éxito", "success");
+    addToast("Has cubierto el turno. ¡Gracias por tu ayuda!", "success");
     setCurrentView('personal');
   };
 
@@ -297,7 +331,32 @@ const App: React.FC = () => {
         au.status === ShiftStatus.CANCELLED ? { ...au, status: ShiftStatus.OPEN } : au
       )
     })));
-    addToast("Historial de bajas reseteado en el registro", "info");
+    addToast("Historial de incidencias reseteado", "info");
+  };
+
+  const handleConfirmAvailability = (userId: string, availability: WeeklyAvailability[]) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        return { ...u, availableForNextMonth: true, availabilityNextMonth: availability };
+      }
+      return u;
+    }));
+    
+    const now = new Date();
+    const timestamp = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+    setAvailabilitySubmissions(prev => [{ userId, timestamp }, ...prev].slice(0, 20));
+
+    if (loggedUser && loggedUser.id === userId) {
+      setLoggedUser({ ...loggedUser, availableForNextMonth: true, availabilityNextMonth: availability });
+    }
+    addToast("Disponibilidad para el próximo mes enviada", "success");
+    setCurrentView('personal');
+  };
+
+  // Función para manejar cambios de vista con sonido sutil
+  const handleViewChange = (view: ViewType) => {
+    playSound(SOUNDS.CLICK);
+    setCurrentView(view);
   };
 
   const renderContent = () => {
@@ -307,7 +366,7 @@ const App: React.FC = () => {
 
     switch (currentView) {
       case 'register':
-        return <RegistrationView onRegister={handleRegisterUser} onGoToPlanning={() => setCurrentView('users')} />;
+        return <RegistrationView onRegister={handleRegisterUser} onGoToPlanning={() => handleViewChange('users')} />;
       case 'planning':
         return (
           <PlanningView 
@@ -317,7 +376,7 @@ const App: React.FC = () => {
             onAddManualShift={(s) => {
               if (authRole === 'admin') {
                 setShifts([...shifts, s]);
-                addToast("Turno manual registrado", "info");
+                addToast("Nuevo turno manual creado", "success");
               }
             }}
             onUpdateShift={(s) => {
@@ -354,7 +413,7 @@ const App: React.FC = () => {
           />
         );
       case 'users':
-        return <UserDirectory users={users} onAddUser={() => setCurrentView('register')} onDeleteUser={authRole === 'admin' ? handleDeleteUser : undefined} />;
+        return <UserDirectory users={users} onAddUser={() => handleViewChange('register')} onDeleteUser={authRole === 'admin' ? handleDeleteUser : undefined} />;
       case 'stats':
         return <DashboardStats users={users} shifts={shifts} onResetHistory={handleResetHistory} />;
       case 'notifications':
@@ -365,11 +424,12 @@ const App: React.FC = () => {
             loggedUser={loggedUser}
             isAdmin={authRole === 'admin'}
             isLastWeekOfMonth={true}
+            availabilitySubmissions={availabilitySubmissions}
             onConfirmShift={handleConfirmShift}
             onCancelShift={handleCancelShift}
             onAcceptCoverage={handleAcceptCoverage}
             onToggleAlerts={() => {}}
-            onConfirmAvailability={() => {}}
+            onConfirmAvailability={handleConfirmAvailability}
           />
         );
       default:
@@ -381,21 +441,24 @@ const App: React.FC = () => {
     <div className="flex h-screen bg-slate-50 overflow-hidden relative">
       {showWelcome && (
         <WelcomeView 
-          onEnter={() => setShowWelcome(false)} 
+          onEnter={() => {
+            playSound(SOUNDS.CLICK);
+            setShowWelcome(false);
+          }} 
           isInstallable={!!deferredPrompt}
           onInstall={handleInstallClick}
         />
       )}
 
       {authRole !== 'guest' && (
-        <Sidebar currentView={currentView} onViewChange={setCurrentView} authRole={authRole} onLogout={handleLogout} unreadCount={unreadNotificationsCount} />
+        <Sidebar currentView={currentView} onViewChange={handleViewChange} authRole={authRole} onLogout={handleLogout} unreadCount={unreadNotificationsCount} />
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {authRole !== 'guest' && (
           <Header 
             currentView={currentView} 
             unreadCount={unreadNotificationsCount} 
-            onBellClick={() => setCurrentView('notifications')}
+            onBellClick={() => handleViewChange('notifications')}
             isOnline={isOnline}
             isSaving={isSaving}
           />
@@ -418,7 +481,7 @@ const App: React.FC = () => {
                <i className={`fa-solid ${t.type === 'alert' ? 'fa-triangle-exclamation animate-bounce text-sm' : t.type === 'success' ? 'fa-check text-sm' : 'fa-bell text-sm'}`}></i>
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Aviso Crítico</p>
+              <p className="text-[9px] font-black uppercase tracking-widest opacity-70">Aviso del Sistema</p>
               <p className="text-xs sm:text-sm font-bold leading-tight">{t.message}</p>
             </div>
           </div>

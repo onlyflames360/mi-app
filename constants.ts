@@ -9,6 +9,15 @@ export const LOCATIONS = [
   'LA CREUETA'
 ];
 
+// Efectos de sonido UI
+export const SOUNDS = {
+  SUCCESS: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
+  ALERT: 'https://assets.mixkit.co/active_storage/sfx/951/951-preview.mp3',
+  NOTIFICATION: 'https://assets.mixkit.co/active_storage/sfx/2357/2357-preview.mp3',
+  CLICK: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
+  LOGOUT: 'https://assets.mixkit.co/active_storage/sfx/2570/2570-preview.mp3'
+};
+
 export const MOCK_USERS: User[] = [];
 
 /**
