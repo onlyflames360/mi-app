@@ -6,9 +6,11 @@ interface HeaderProps {
   currentView: ViewType;
   unreadCount?: number;
   onBellClick?: () => void;
+  isOnline?: boolean;
+  isSaving?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentView, unreadCount = 0, onBellClick }) => {
+const Header: React.FC<HeaderProps> = ({ currentView, unreadCount = 0, onBellClick, isOnline = true, isSaving = false }) => {
   const titles: Record<ViewType, string> = {
     register: 'Inscripción de Voluntarios',
     planning: 'Planilla de Turnos PPOC',
@@ -21,9 +23,27 @@ const Header: React.FC<HeaderProps> = ({ currentView, unreadCount = 0, onBellCli
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 shrink-0 no-print">
-      <h1 className="text-xl font-bold text-slate-800">{titles[currentView]}</h1>
-      <div className="flex items-center gap-4">
+    <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sm:px-8 shrink-0 no-print">
+      <div className="flex items-center gap-3">
+        <h1 className="text-sm sm:text-xl font-bold text-slate-800 truncate mr-2">{titles[currentView]}</h1>
+        {isSaving && (
+          <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md animate-pulse">
+            <i className="fa-solid fa-cloud-arrow-up text-[10px]"></i>
+            <span className="text-[9px] font-bold uppercase tracking-tighter">Guardando...</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Indicador de Conexión y Protección de Datos */}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
+          <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+          <span className="hidden sm:block text-[9px] font-black uppercase tracking-widest text-slate-400">
+            {isOnline ? 'Datos Protegidos' : 'Modo Local'}
+          </span>
+          <i className="fa-solid fa-shield-halved text-[10px] text-slate-300 ml-1"></i>
+        </div>
+
         <div className="relative">
           <button 
             onClick={onBellClick}
@@ -41,12 +61,10 @@ const Header: React.FC<HeaderProps> = ({ currentView, unreadCount = 0, onBellCli
             )}
           </button>
         </div>
-        <div className="h-8 w-[1px] bg-slate-200 mx-2"></div>
+
+        <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden sm:block"></div>
+        
         <div className="flex items-center gap-3">
-          <div className="hidden sm:block text-right">
-            <p className="text-sm font-semibold leading-none">Usuario Conectado</p>
-            <p className="text-xs text-slate-400 mt-1">Sincronizado</p>
-          </div>
           <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border border-slate-200">
             <i className="fa-solid fa-user-check text-xs"></i>
           </div>

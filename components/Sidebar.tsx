@@ -34,7 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, authRole, 
         <div className="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center">
           <i className="fa-solid fa-cart-shopping text-xl"></i>
         </div>
-        <span className="hidden md:block font-black text-xl tracking-tighter uppercase">Carrito</span>
+        <span className="hidden md:block font-black text-xl tracking-tighter uppercase">PPOC</span>
       </div>
 
       <div className="px-6 mb-4 hidden md:block">

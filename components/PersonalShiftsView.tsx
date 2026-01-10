@@ -51,7 +51,7 @@ const PersonalShiftsView: React.FC<PersonalShiftsViewProps> = ({
               </span>
             )}
           </div>
-          <p className="text-slate-400 font-bold mt-2 uppercase tracking-widest text-xs">Bienvenido de nuevo • PPOC Carrito</p>
+          <p className="text-slate-400 font-bold mt-2 uppercase tracking-widest text-xs">Bienvenido de nuevo • PPOC Villajoyosa</p>
           
           <div className="grid grid-cols-3 gap-4 mt-8">
             <div className="bg-slate-50 p-3 rounded-2xl text-center">

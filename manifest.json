@@ -1,18 +1,24 @@
 
 {
-  "name": "Carrito PPOC",
-  "short_name": "Carrito",
+  "name": "PPOC Villajoyosa",
+  "short_name": "PPOC",
   "description": "Gestión inteligente de turnos para voluntarios.",
-  "start_url": "/",
+  "start_url": ".",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#0f172a",
   "theme_color": "#4f46e5",
   "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1170/1170576.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
     {
       "src": "https://cdn-icons-png.flaticon.com/512/1170/1170576.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "orientation": "portrait"
 }
