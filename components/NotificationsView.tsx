@@ -17,10 +17,10 @@ interface NotificationsViewProps {
 }
 
 const NEXT_MONTH_WEEKS = [
-  { week: 1, label: '01 Feb - 07 Feb' },
-  { week: 2, label: '08 Feb - 14 Feb' },
-  { week: 3, label: '15 Feb - 21 Feb' },
-  { week: 4, label: '22 Feb - 28 Feb' },
+  { week: 1, label: '01 Mar - 07 Mar' },
+  { week: 2, label: '08 Mar - 14 Mar' },
+  { week: 3, label: '15 Mar - 21 Mar' },
+  { week: 4, label: '22 Mar - 28 Mar' },
 ];
 
 const SLOT_LABELS: Record<string, string> = {
@@ -32,7 +32,7 @@ const SLOT_LABELS: Record<string, string> = {
 };
 
 const NotificationsView: React.FC<NotificationsViewProps> = ({ 
-  shifts, users, loggedUser, isAdmin, isLastWeekOfMonth, availabilitySubmissions = [], onConfirmShift, onCancelShift, onAcceptCoverage, onToggleAlerts, onConfirmAvailability 
+  shifts, users, loggedUser, isAdmin, isLastWeekOfMonth, availabilitySubmissions = [], onConfirmShift, onCancelShift, onAcceptCoverage, onConfirmAvailability 
 }) => {
   const [activeWeekTab, setActiveWeekTab] = useState(1);
   const [tempAvailability, setTempAvailability] = useState<WeeklyAvailability[]>(
@@ -75,7 +75,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                 <div className="h-full bg-emerald-400 transition-all duration-1000" style={{ width: `${(nextMonthConfirmedCount / (users.length || 1)) * 100}%` }}></div>
               </div>
               <p className="text-xs text-indigo-200 font-medium">
-                El sistema está registrando las preferencias en español para la generación de la nueva planilla.
+                El sistema está registrando las preferencias oficiales para generar la nueva planilla.
               </p>
             </div>
             <i className="fa-solid fa-calendar-plus absolute -right-10 -bottom-10 text-9xl opacity-10"></i>
@@ -86,7 +86,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
              <div className="flex items-center justify-between mb-8">
                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Registro de Respuestas</h3>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest animate-pulse">
-                   En Tiempo Real
+                   Sincronizado
                 </span>
              </div>
 
@@ -132,16 +132,6 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                   })
                 )}
              </div>
-             
-             <div className="mt-6 flex items-center gap-4 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 overflow-x-auto">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Leyenda:</span>
-                <div className="flex items-center gap-3">
-                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-amber-400"></div><span className="text-[8px] font-bold text-slate-500 uppercase">Mañana</span></div>
-                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-indigo-500"></div><span className="text-[8px] font-bold text-slate-500 uppercase">Tarde</span></div>
-                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-emerald-500"></div><span className="text-[8px] font-bold text-slate-500 uppercase">Ambos</span></div>
-                   <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-red-500"></div><span className="text-[8px] font-bold text-slate-500 uppercase">No puedo</span></div>
-                </div>
-             </div>
           </div>
         </div>
 
@@ -149,7 +139,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
               <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2 mb-6">
                 <i className="fa-solid fa-triangle-exclamation text-amber-500"></i>
-                Turnos Sin Cubrir ({openForCoverage.length})
+                Bajas sin cubrir ({openForCoverage.length})
               </h3>
               <div className="space-y-4">
                 {openForCoverage.map(shift => (
@@ -165,9 +155,12 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
     );
   }
 
+  // Guard para evitar errores de tipado en voluntarios
+  if (!loggedUser) return null;
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
-      {/* SECCIÓN DETALLADA: DISPONIBILIDAD PRÓXIMO MES (VOLUNTARIO) */}
+      {/* SECCIÓN DISPONIBILIDAD PRÓXIMO MES */}
       {isLastWeekOfMonth && !loggedUser?.availableForNextMonth && (
         <div className="bg-white p-8 md:p-10 rounded-[3rem] shadow-2xl border border-indigo-100 relative overflow-hidden">
           <div className="relative z-10">
@@ -177,7 +170,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
               </div>
               <div>
                 <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Preparación Próximo Mes</h3>
-                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Define tus turnos elegidos para el mes que viene</p>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">Elige tus horarios para el mes que viene</p>
               </div>
             </div>
 
@@ -237,19 +230,14 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
 
             <button
               disabled={!isAllFilled}
-              onClick={() => onConfirmAvailability(loggedUser!.id, tempAvailability)}
+              onClick={() => loggedUser && onConfirmAvailability(loggedUser.id, tempAvailability)}
               className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 ${
                 isAllFilled ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95' : 'bg-slate-100 text-slate-300 cursor-not-allowed'
               }`}
             >
               <i className="fa-solid fa-paper-plane"></i>
-              Enviar Turnos Elegidos a Coordinación
+              Confirmar Disponibilidad
             </button>
-            {!isAllFilled && (
-              <p className="text-center text-[10px] font-bold text-slate-400 uppercase mt-4">
-                Por favor, elige tu horario para cada semana antes de enviar
-              </p>
-            )}
           </div>
         </div>
       )}
@@ -258,12 +246,12 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
       {openForCoverage.length > 0 && (
         <div className="bg-amber-500 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden animate-pulse">
           <div className="relative z-10">
-            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Turnos Libres: Necesitan Cobertura</h3>
+            <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Turnos Libres: Se necesita ayuda</h3>
             <div className="space-y-4 mt-6">
               {openForCoverage.map(shift => (
                 <div key={shift.id} className="bg-white/10 border border-white/20 p-6 rounded-3xl flex justify-between items-center gap-4 backdrop-blur-md">
                   <p className="text-sm font-medium">Turno en <span className="font-black">{shift.location}</span> el <span className="font-black">{shift.dayName} {shift.date}</span>.</p>
-                  <button onClick={() => onAcceptCoverage(shift.id, loggedUser!.id)} className="px-8 py-4 bg-white text-amber-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-50">Cubrir Turno</button>
+                  <button onClick={() => loggedUser && onAcceptCoverage(shift.id, loggedUser.id)} className="px-8 py-4 bg-white text-amber-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-50">Cubrir</button>
                 </div>
               ))}
             </div>
@@ -276,17 +264,17 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
         <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase mb-8">Mis Notificaciones</h2>
         <div className="space-y-6">
           {pendingShifts.length === 0 ? (
-            <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No hay avisos nuevos.</div>
+            <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">No tienes avisos pendientes.</div>
           ) : (
             pendingShifts.map(shift => (
-              <div key={shift.id} className="bg-slate-50 p-6 rounded-[2rem] border-2 border-indigo-50 flex justify-between items-center gap-6">
+              <div key={shift.id} className="bg-slate-50 p-6 rounded-[2rem] border-2 border-indigo-50 flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex-1">
                   <p className="text-indigo-600 font-black text-[10px] uppercase mb-1">Aviso Semanal</p>
-                  <p className="text-slate-800 font-medium">Tienes un turno el <span className="font-black underline">{shift.dayName} {shift.date}</span> en <span className="font-black">{shift.location}</span>.</p>
+                  <p className="text-slate-800 font-medium">Turno el <span className="font-black underline">{shift.dayName} {shift.date}</span> en <span className="font-black">{shift.location}</span>.</p>
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={() => onConfirmShift(shift.id, loggedUser.id)} className="px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase">Sí</button>
-                  <button onClick={() => onCancelShift(shift.id, loggedUser.id)} className="px-6 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-xs uppercase">No</button>
+                <div className="flex gap-3 w-full md:w-auto">
+                  <button onClick={() => loggedUser && onConfirmShift(shift.id, loggedUser.id)} className="flex-1 px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase">Confirmar</button>
+                  <button onClick={() => loggedUser && onCancelShift(shift.id, loggedUser.id)} className="flex-1 px-6 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-xs uppercase">No puedo</button>
                 </div>
               </div>
             ))

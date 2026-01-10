@@ -66,6 +66,17 @@ const App: React.FC = () => {
     audio.play().catch(e => console.debug("Audio play blocked", e));
   };
 
+  // Sincronización cruzada: Si otra pestaña cambia los datos, actualizamos el estado
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'carrito_users' && e.newValue) setUsers(JSON.parse(e.newValue));
+      if (e.key === 'carrito_shifts' && e.newValue) setShifts(JSON.parse(e.newValue));
+      if (e.key === 'carrito_submissions' && e.newValue) setAvailabilitySubmissions(JSON.parse(e.newValue));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -170,10 +181,10 @@ const App: React.FC = () => {
     if (code === '1914') {
       setAuthRole('admin');
       setCurrentView('planning');
-      addToast("Identidad de Coordinador verificada.", "success");
+      addToast("Acceso de Coordinación verificado.", "success");
     } else {
       playSound(SOUNDS.ALERT);
-      alert("Código incorrecto. Acceso denegado.");
+      alert("Código incorrecto.");
     }
   };
 
@@ -183,12 +194,12 @@ const App: React.FC = () => {
       setLoggedUser(user);
       setAuthRole('volunteer');
       setCurrentView('personal');
-      addToast(`Bienvenido de nuevo, ${user.name.split(' ')[0]}.`, "success");
+      addToast(`Sesión iniciada: ${user.name.split(' ')[0]}`, "success");
     }
   };
 
   const handleLogout = () => {
-    if (window.confirm("¿Seguro que quieres salir?")) {
+    if (window.confirm("¿Seguro que quieres cerrar sesión?")) {
       playSound(SOUNDS.LOGOUT);
       setAuthRole('guest');
       setLoggedUser(null);
@@ -204,7 +215,7 @@ const App: React.FC = () => {
     if (authRole !== 'admin') return;
     if (users.length < 2) {
       playSound(SOUNDS.ALERT);
-      alert(`Registra al menos 2 voluntarios antes de repartir turnos.`);
+      alert(`Necesitas más voluntarios registrados.`);
       return;
     }
     const year = viewDate.getFullYear();
@@ -217,7 +228,7 @@ const App: React.FC = () => {
       });
       return [...otherMonths, ...newShifts];
     });
-    addToast(`Planilla de ${viewDate.toLocaleDateString('es-ES', {month: 'long'})} lista.`, "success");
+    addToast(`Planilla generada correctamente.`, "success");
   }, [users, viewDate, authRole]);
 
   const handleAdminCancelShift = (shiftId: string, reason: string) => {
@@ -235,7 +246,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Turno suspendido: ${reason}`, "alert");
+    addToast(`Turno suspendido y notificado.`, "alert");
   };
 
   const handleRegisterUser = (name: string, surname: string, alerts: boolean) => {
@@ -251,7 +262,7 @@ const App: React.FC = () => {
       availableForNextMonth: false
     };
     setUsers(prev => [newUser, ...prev]);
-    addToast(`Voluntario añadido al registro oficial.`, "success");
+    addToast(`Voluntario registrado con éxito.`, "success");
     setCurrentView('users');
   };
 
@@ -291,7 +302,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Baja registrada. Buscando sustitutos...`, "alert");
+    addToast(`Baja registrada. Se ha avisado a los demás.`, "alert");
   };
 
   const handleAcceptCoverage = (shiftId: string, userId: string) => {
@@ -311,7 +322,7 @@ const App: React.FC = () => {
       return shift;
     }));
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, shiftsCovered: u.shiftsCovered + 1 } : u));
-    addToast("Gracias por cubrir este turno.", "success");
+    addToast("¡Gracias por cubrir este turno!", "success");
     setCurrentView('personal');
   };
 
@@ -342,7 +353,7 @@ const App: React.FC = () => {
     if (loggedUser && loggedUser.id === userId) {
       setLoggedUser({ ...loggedUser, availableForNextMonth: true, availabilityNextMonth: availability });
     }
-    addToast("Disponibilidad enviada.", "success");
+    addToast("Disponibilidad enviada correctamente.", "success");
     setCurrentView('personal');
   };
 
@@ -368,7 +379,7 @@ const App: React.FC = () => {
             onAddManualShift={(s) => {
               if (authRole === 'admin') {
                 setShifts([...shifts, s]);
-                addToast("Nuevo turno publicado.", "success");
+                addToast("Nuevo turno publicado en la planilla.", "success");
               }
             }}
             onUpdateShift={(s) => {
