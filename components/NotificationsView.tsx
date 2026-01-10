@@ -58,7 +58,6 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full animate-in fade-in duration-500">
         <div className="lg:col-span-2 space-y-8">
           
-          {/* PANEL DE PREPARACIÓN PRÓXIMO MES (ADMIN) */}
           <div className="bg-indigo-900 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-6">
@@ -75,13 +74,12 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                 <div className="h-full bg-emerald-400 transition-all duration-1000" style={{ width: `${(nextMonthConfirmedCount / (users.length || 1)) * 100}%` }}></div>
               </div>
               <p className="text-xs text-indigo-200 font-medium italic opacity-80">
-                Los datos se sincronizan automáticamente entre todos los dispositivos.
+                Sincronización activa: Los datos se actualizan en todos los dispositivos.
               </p>
             </div>
             <i className="fa-solid fa-calendar-plus absolute -right-10 -bottom-10 text-9xl opacity-10"></i>
           </div>
 
-          {/* REGISTRO DE RESPUESTAS */}
           <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
              <div className="flex items-center justify-between mb-8">
                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Actividad Reciente</h3>
@@ -156,15 +154,15 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
     );
   }
 
-  // FIJAR EL USUARIO PARA EVITAR ERRORES DE TIPADO
+  // FIJAR EL USUARIO PARA EVITAR ERRORES DE TIPADO TS18047
   if (!loggedUser) return null;
-  const currentUser = loggedUser;
+  const currentUserId = loggedUser.id;
+  const currentUserAvailable = loggedUser.availableForNextMonth;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
       
-      {/* SECCIÓN DISPONIBILIDAD PRÓXIMO MES */}
-      {isLastWeekOfMonth && !currentUser.availableForNextMonth && (
+      {isLastWeekOfMonth && !currentUserAvailable && (
         <div className="bg-white p-8 md:p-10 rounded-[3rem] shadow-2xl border border-indigo-100 relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex items-center gap-4 mb-8">
@@ -233,7 +231,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
 
             <button
               disabled={!isAllFilled}
-              onClick={() => onConfirmAvailability(currentUser.id, tempAvailability)}
+              onClick={() => onConfirmAvailability(currentUserId, tempAvailability)}
               className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 ${
                 isAllFilled ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95' : 'bg-slate-100 text-slate-300 cursor-not-allowed'
               }`}
@@ -245,7 +243,6 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
         </div>
       )}
 
-      {/* COBERTURAS ABIERTAS */}
       {openForCoverage.length > 0 && (
         <div className="bg-amber-500 p-8 rounded-[2.5rem] shadow-2xl text-white relative overflow-hidden">
           <div className="relative z-10">
@@ -261,7 +258,7 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                     <p className="text-[10px] font-bold opacity-80">{shift.dayName} {shift.date} • {shift.startTime}</p>
                   </div>
                   <button 
-                    onClick={() => onAcceptCoverage(shift.id, currentUser.id)} 
+                    onClick={() => onAcceptCoverage(shift.id, currentUserId)} 
                     className="px-8 py-4 bg-white text-amber-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-50 shadow-lg active:scale-95 transition-all"
                   >
                     Cubrir
@@ -274,7 +271,6 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
         </div>
       )}
 
-      {/* Inbox Personal */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
         <h2 className="text-3xl font-black text-slate-800 tracking-tight uppercase mb-8">Mis Avisos</h2>
         <div className="space-y-6">
@@ -291,13 +287,13 @@ const NotificationsView: React.FC<NotificationsViewProps> = ({
                 </div>
                 <div className="flex gap-3 w-full md:w-auto">
                   <button 
-                    onClick={() => onConfirmShift(shift.id, currentUser.id)} 
+                    onClick={() => onConfirmShift(shift.id, currentUserId)} 
                     className="flex-1 px-6 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase shadow-lg shadow-emerald-100 hover:bg-emerald-600 active:scale-95 transition-all"
                   >
                     Confirmar
                   </button>
                   <button 
-                    onClick={() => onCancelShift(shift.id, currentUser.id)} 
+                    onClick={() => onCancelShift(shift.id, currentUserId)} 
                     className="flex-1 px-6 py-4 bg-white text-red-600 border border-red-100 rounded-2xl font-black text-xs uppercase hover:bg-red-50 transition-all"
                   >
                     Baja

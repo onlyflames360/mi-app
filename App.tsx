@@ -59,32 +59,49 @@ const App: React.FC = () => {
   const [toasts, setToasts] = useState<any[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
 
-  // Helper para reproducir sonidos
   const playSound = (soundUrl: string) => {
     const audio = new Audio(soundUrl);
     audio.volume = 0.45;
     audio.play().catch(() => {});
   };
 
-  // SINCRONIZACIÓN AUTOMÁTICA (Storage Event + Polling Simulado)
+  // SINCRONIZACIÓN AUTOMÁTICA MEJORADA
   useEffect(() => {
-    const syncData = () => {
+    const syncFromLocalStorage = () => {
       const u = localStorage.getItem('carrito_users');
       const s = localStorage.getItem('carrito_shifts');
       const sub = localStorage.getItem('carrito_submissions');
+      const l = localStorage.getItem('carrito_loggedUser');
+      
       if (u) setUsers(JSON.parse(u));
       if (s) setShifts(JSON.parse(s));
       if (sub) setAvailabilitySubmissions(JSON.parse(sub));
+      if (l) {
+        const parsedLogged = JSON.parse(l);
+        // Si el usuario logueado ha sido actualizado en la lista global, actualizarlo aquí también
+        if (u) {
+          const globalList = JSON.parse(u) as User[];
+          const updated = globalList.find(user => user.id === parsedLogged.id);
+          if (updated) setLoggedUser(updated);
+          else setLoggedUser(parsedLogged);
+        } else {
+          setLoggedUser(parsedLogged);
+        }
+      }
     };
 
     window.addEventListener('storage', (e) => {
-      if (e.key?.startsWith('carrito_')) syncData();
+      if (e.key?.startsWith('carrito_')) {
+        syncFromLocalStorage();
+        // Feedback visual sutil de sincronización
+        console.log("Sincronizando cambios externos...");
+      }
     });
 
-    // Simular un fetch al servidor cada 30 segundos si se desea sincronización remota total
-    const interval = setInterval(syncData, 30000);
+    // Polling agresivo cada 15s para simular "tiempo real" en Vercel sin backend
+    const interval = setInterval(syncFromLocalStorage, 15000);
     return () => {
-      window.removeEventListener('storage', syncData);
+      window.removeEventListener('storage', syncFromLocalStorage);
       clearInterval(interval);
     };
   }, []);
@@ -92,11 +109,11 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      addToast("Conexión restablecida. Sincronizando con la nube...", "success");
+      addToast("Conexión restablecida.", "success");
     };
     const handleOffline = () => {
       setIsOnline(false);
-      addToast("Modo Offline: Los cambios se enviarán al reconectar.", "alert");
+      addToast("Modo Offline: Datos guardados localmente.", "alert");
     };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -106,23 +123,16 @@ const App: React.FC = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setDeferredPrompt(null);
+  const addToast = (message: string, type: 'info' | 'success' | 'alert') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    if (type === 'success') playSound(SOUNDS.SUCCESS);
+    else if (type === 'alert') playSound(SOUNDS.ALERT);
+    else playSound(SOUNDS.NOTIFICATION);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
-  // Guardado persistente automático con indicador visual
+  // Persistencia de estado
   useEffect(() => {
     setIsSaving(true);
     localStorage.setItem('carrito_users', JSON.stringify(users));
@@ -131,39 +141,15 @@ const App: React.FC = () => {
     localStorage.setItem('carrito_authRole', authRole);
     if (loggedUser) localStorage.setItem('carrito_loggedUser', JSON.stringify(loggedUser));
     
-    const timer = setTimeout(() => setIsSaving(false), 800);
+    const timer = setTimeout(() => setIsSaving(false), 500);
     return () => clearTimeout(timer);
   }, [users, availabilitySubmissions, shifts, authRole, loggedUser]);
-
-  const unreadNotificationsCount = useMemo(() => {
-    if (authRole === 'admin') return shifts.filter(s => s.isReassignmentOpen).length;
-    if (authRole === 'volunteer' && loggedUser) {
-      const pendingMyConfirmation = shifts.filter(s => 
-        s.assignedUsers.some(au => au.userId === loggedUser.id && au.status === ShiftStatus.PENDING)
-      ).length;
-      const openForEveryone = shifts.filter(s => s.isReassignmentOpen).length;
-      return pendingMyConfirmation + openForEveryone;
-    }
-    return 0;
-  }, [shifts, authRole, loggedUser]);
-
-  const addToast = (message: string, type: 'info' | 'success' | 'alert') => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-    if (type === 'success') playSound(SOUNDS.SUCCESS);
-    else if (type === 'alert') playSound(SOUNDS.ALERT);
-    else playSound(SOUNDS.NOTIFICATION);
-
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4500);
-  };
 
   const handleAdminAccess = (code: string) => {
     if (code === '1914') {
       setAuthRole('admin');
       setCurrentView('planning');
-      addToast("Identidad Coordinador Verificada.", "success");
+      addToast("Acceso Coordinador.", "success");
     } else {
       playSound(SOUNDS.ALERT);
       alert("Código incorrecto.");
@@ -176,12 +162,12 @@ const App: React.FC = () => {
       setLoggedUser(user);
       setAuthRole('volunteer');
       setCurrentView('personal');
-      addToast(`Bienvenido, ${user.name.split(' ')[0]}.`, "success");
+      addToast(`Hola, ${user.name.split(' ')[0]}.`, "success");
     }
   };
 
   const handleLogout = () => {
-    if (window.confirm("¿Seguro que quieres salir?")) {
+    if (window.confirm("¿Cerrar sesión?")) {
       playSound(SOUNDS.LOGOUT);
       setAuthRole('guest');
       setLoggedUser(null);
@@ -189,67 +175,6 @@ const App: React.FC = () => {
       setShowWelcome(true);
       localStorage.removeItem('carrito_authRole');
       localStorage.removeItem('carrito_loggedUser');
-    }
-  };
-
-  const handleRandomize = useCallback(() => {
-    if (authRole !== 'admin') return;
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-    const newShifts = generateRealShifts(users, year, month);
-    setShifts(prev => {
-      const otherMonths = prev.filter(s => {
-        const d = new Date(s.date);
-        return d.getFullYear() !== year || d.getMonth() !== month;
-      });
-      return [...otherMonths, ...newShifts];
-    });
-    addToast("Planilla mensual generada.", "success");
-  }, [users, viewDate, authRole]);
-
-  const handleAdminCancelShift = (shiftId: string, reason: string) => {
-    if (authRole !== 'admin') return;
-    setShifts(prev => prev.map(shift => {
-      if (shift.id === shiftId) {
-        return { 
-          ...shift, 
-          assignedUsers: shift.assignedUsers.map(au => ({ ...au, status: ShiftStatus.CANCELLED })),
-          isCancelledByAdmin: true, 
-          cancellationReason: reason,
-          isReassignmentOpen: false 
-        };
-      }
-      return shift;
-    }));
-    addToast(`Turno suspendido: ${reason}`, "alert");
-  };
-
-  const handleRegisterUser = (name: string, surname: string, alerts: boolean) => {
-    if (authRole !== 'admin') return;
-    const newUser: User = {
-      id: `u-${Date.now()}`,
-      name: `${name.toUpperCase()} ${surname.toUpperCase()}`,
-      shiftsFulfilled: 0,
-      shiftsFailed: 0,
-      shiftsCovered: 0,
-      isAvailable: true,
-      notificationsEnabled: alerts,
-      availableForNextMonth: false
-    };
-    setUsers(prev => [newUser, ...prev]);
-    addToast(`Voluntario añadido al sistema.`, "success");
-    setCurrentView('users');
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (authRole !== 'admin') return;
-    if (window.confirm("¿Confirmar eliminación permanente?")) {
-      setUsers(prev => prev.filter(u => u.id !== userId));
-      setShifts(prev => prev.map(s => ({
-        ...s,
-        assignedUsers: s.assignedUsers.filter(au => au.userId !== userId)
-      })));
-      addToast("Usuario eliminado del registro.", "info");
     }
   };
 
@@ -265,7 +190,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast("Asistencia confirmada.", "success");
+    addToast("Turno confirmado.", "success");
   };
 
   const handleCancelShift = (shiftId: string, userId: string) => {
@@ -281,7 +206,7 @@ const App: React.FC = () => {
       }
       return shift;
     }));
-    addToast(`Baja registrada. Buscando sustituto...`, "alert");
+    addToast("Baja registrada.", "alert");
   };
 
   const handleAcceptCoverage = (shiftId: string, userId: string) => {
@@ -301,7 +226,7 @@ const App: React.FC = () => {
       return shift;
     }));
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, shiftsCovered: u.shiftsCovered + 1 } : u));
-    addToast("¡Gracias por cubrir el turno!", "success");
+    addToast("¡Gracias por cubrir!", "success");
     setCurrentView('personal');
   };
 
@@ -316,16 +241,23 @@ const App: React.FC = () => {
     setAvailabilitySubmissions(prev => [{ userId, timestamp }, ...prev].slice(0, 20));
 
     if (loggedUser && loggedUser.id === userId) {
-      setLoggedUser({ ...loggedUser, availableForNextMonth: true, availabilityNextMonth: availability });
+      setLoggedUser(prev => prev ? { ...prev, availableForNextMonth: true, availabilityNextMonth: availability } : null);
     }
     addToast("Disponibilidad enviada.", "success");
     setCurrentView('personal');
   };
 
-  const handleViewChange = (view: ViewType) => {
-    playSound(SOUNDS.POP);
-    setCurrentView(view);
-  };
+  const unreadNotificationsCount = useMemo(() => {
+    if (authRole === 'admin') return shifts.filter(s => s.isReassignmentOpen).length;
+    if (authRole === 'volunteer' && loggedUser) {
+      const pendingMyConfirmation = shifts.filter(s => 
+        s.assignedUsers.some(au => au.userId === loggedUser.id && au.status === ShiftStatus.PENDING)
+      ).length;
+      const openForEveryone = shifts.filter(s => s.isReassignmentOpen).length;
+      return pendingMyConfirmation + openForEveryone;
+    }
+    return 0;
+  }, [shifts, authRole, loggedUser]);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden relative">
@@ -333,19 +265,19 @@ const App: React.FC = () => {
         <WelcomeView 
           onEnter={() => { playSound(SOUNDS.CLICK); setShowWelcome(false); }} 
           isInstallable={!!deferredPrompt}
-          onInstall={handleInstallClick}
+          onInstall={() => deferredPrompt?.prompt()}
         />
       )}
 
       {authRole !== 'guest' && (
-        <Sidebar currentView={currentView} onViewChange={handleViewChange} authRole={authRole} onLogout={handleLogout} unreadCount={unreadNotificationsCount} />
+        <Sidebar currentView={currentView} onViewChange={setCurrentView} authRole={authRole} onLogout={handleLogout} unreadCount={unreadNotificationsCount} />
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {authRole !== 'guest' && (
           <Header 
             currentView={currentView} 
             unreadCount={unreadNotificationsCount} 
-            onBellClick={() => handleViewChange('notifications')}
+            onBellClick={() => setCurrentView('notifications')}
             isOnline={isOnline}
             isSaving={isSaving}
           />
@@ -357,11 +289,23 @@ const App: React.FC = () => {
             ) : (
               (() => {
                 switch (currentView) {
-                  case 'register': return <RegistrationView onRegister={handleRegisterUser} onGoToPlanning={() => handleViewChange('users')} />;
-                  case 'planning': return <PlanningView shifts={shifts} users={users} onRandomize={handleRandomize} onAddManualShift={(s) => setShifts([...shifts, s])} onUpdateShift={(s) => setShifts(shifts.map(sh => sh.id === s.id ? s : sh))} isAdmin={authRole === 'admin'} viewDate={viewDate} onViewDateChange={setViewDate} />;
+                  case 'register': return <RegistrationView onRegister={(n, s, a) => {
+                    const nu: User = { id: `u-${Date.now()}`, name: `${n.toUpperCase()} ${s.toUpperCase()}`, shiftsFulfilled: 0, shiftsFailed: 0, shiftsCovered: 0, isAvailable: true, notificationsEnabled: a, availableForNextMonth: false };
+                    setUsers(prev => [nu, ...prev]); addToast("Voluntario registrado.", "success"); setCurrentView('users');
+                  }} onGoToPlanning={() => setCurrentView('users')} />;
+                  case 'planning': return <PlanningView shifts={shifts} users={users} onRandomize={() => {
+                    const ns = generateRealShifts(users, viewDate.getFullYear(), viewDate.getMonth());
+                    setShifts(prev => [...prev.filter(s => new Date(s.date).getMonth() !== viewDate.getMonth()), ...ns]);
+                    addToast("Planilla generada.", "success");
+                  }} onAddManualShift={(s) => setShifts([...shifts, s])} onUpdateShift={(s) => setShifts(shifts.map(sh => sh.id === s.id ? s : sh))} isAdmin={authRole === 'admin'} viewDate={viewDate} onViewDateChange={setViewDate} />;
                   case 'personal': return <PersonalShiftsView shifts={shifts} users={users} loggedUser={loggedUser} onConfirm={handleConfirmShift} onCancel={handleCancelShift} unreadCount={unreadNotificationsCount} />;
-                  case 'calendar': return <CalendarView shifts={shifts} users={users} onCancel={handleCancelShift} onConfirm={handleConfirmShift} onAdminCancel={handleAdminCancelShift} isAdmin={authRole === 'admin'} filterUserId={authRole === 'volunteer' ? loggedUser?.id : undefined} viewDate={viewDate} onViewDateChange={setViewDate} />;
-                  case 'users': return <UserDirectory users={users} onAddUser={() => handleViewChange('register')} onDeleteUser={authRole === 'admin' ? handleDeleteUser : undefined} />;
+                  case 'calendar': return <CalendarView shifts={shifts} users={users} onCancel={handleCancelShift} onConfirm={handleConfirmShift} onAdminCancel={(id, r) => {
+                    setShifts(prev => prev.map(s => s.id === id ? {...s, isCancelledByAdmin: true, cancellationReason: r, isReassignmentOpen: false} : s));
+                    addToast("Turno suspendido.", "alert");
+                  }} isAdmin={authRole === 'admin'} filterUserId={authRole === 'volunteer' ? loggedUser?.id : undefined} viewDate={viewDate} onViewDateChange={setViewDate} />;
+                  case 'users': return <UserDirectory users={users} onDeleteUser={(id) => {
+                    if (window.confirm("¿Eliminar?")) { setUsers(users.filter(u => u.id !== id)); addToast("Usuario eliminado.", "info"); }
+                  }} />;
                   case 'stats': return <DashboardStats users={users} shifts={shifts} onResetHistory={() => setShifts(shifts.map(s => ({...s, isReassignmentOpen: false})))} />;
                   case 'notifications': return <NotificationsView shifts={shifts} users={users} loggedUser={loggedUser} isAdmin={authRole === 'admin'} isLastWeekOfMonth={true} availabilitySubmissions={availabilitySubmissions} onConfirmShift={handleConfirmShift} onCancelShift={handleCancelShift} onAcceptCoverage={handleAcceptCoverage} onToggleAlerts={() => {}} onConfirmAvailability={handleConfirmAvailability} />;
                   default: return null;
