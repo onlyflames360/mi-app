@@ -1,9 +1,11 @@
 
 {
-  "name": "PPOC - Gestión de Turnos",
-  "description": "Aplicación avanzada para la organización de turnos con notificaciones móviles nativas, confirmación instantánea y gestión automática de reemplazos.",
+  "name": "PPOC - Planificación de Turnos",
+  "description": "App de gestión de turnos para carritos con reparto inteligente y notificaciones push.",
   "requestFramePermissions": [
-    "camera",
-    "microphone"
+    "camera"
+  ],
+  "permissions": [
+    "notifications"
   ]
 }

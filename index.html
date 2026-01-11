@@ -1,44 +1,29 @@
 
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PPOC - Gestión de Turnos</title>
-    
-    <!-- Meta tags para PWA e iOS -->
-    <meta name="theme-color" content="#4f46e5">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PPOC">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1170/1170576.png">
-    <link rel="manifest" href="manifest.json">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Lens & Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { 
+        body {
             font-family: 'Inter', sans-serif;
-            /* Evitar scroll elástico y rebotes en iOS */
-            overscroll-behavior-y: none;
-            -webkit-tap-highlight-color: transparent;
+            background-color: #0f172a;
+            color: #f8fafc;
         }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* Ajuste para áreas seguras (notches) */
-        .safe-top { padding-top: env(safe-area-inset-top); }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        .safe-pb-sidebar { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
-
-        @media print {
-            header, nav, .no-print { display: none !important; }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
-        /* Optimizaciones táctiles */
-        button, a {
-            touch-action: manipulation;
+        .gradient-text {
+            background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
     </style>
 <script type="importmap">
@@ -47,17 +32,13 @@
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "recharts": "https://esm.sh/recharts@^3.6.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vercel/edge-config": "https://esm.sh/@vercel/edge-config@^1.4.3",
-    "firebase/": "https://esm.sh/firebase@^12.7.0/"
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-slate-50 text-slate-900 antialiased">
+<body>
     <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
 </body>

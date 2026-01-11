@@ -1,49 +1,41 @@
 
-export enum ShiftStatus {
-  PENDING = 'PENDING',
-  CONFIRMED = 'CONFIRMED',
-  CANCELLED = 'CANCELLED',
-  OPEN = 'OPEN'
-}
-
-export type AuthRole = 'guest' | 'admin' | 'volunteer';
-
-export type AvailabilitySlot = 'morning' | 'afternoon' | 'both' | 'none' | 'empty';
-
-export interface WeeklyAvailability {
-  week: number;
-  label: string;
-  slot: AvailabilitySlot;
-}
+export type Role = 'COORDINATOR' | 'VOLUNTEER';
 
 export interface User {
   id: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  shiftsFulfilled: number;
-  shiftsFailed: number;
-  shiftsCovered: number;
-  isAvailable: boolean;
-  notificationsEnabled: boolean;
-  availableForNextMonth?: boolean;
-  availabilityNextMonth?: WeeklyAvailability[];
+  firstName: string;
+  lastName: string;
+  wantsNotifications: boolean;
+  attendanceHistory: { confirmed: number; failed: number };
 }
 
 export interface Shift {
   id: string;
-  date: string;
-  dayName: string;
-  startTime: string;
-  endTime: string;
+  date: string; // ISO string YYYY-MM-DD
+  time: string; // e.g., "10:30 - 12:30"
+  period: 'MAÑANA' | 'TARDE';
   location: string;
-  assignedUsers: {
-    userId: string;
-    status: ShiftStatus;
-  }[];
-  isReassignmentOpen: boolean;
-  isCancelledByAdmin?: boolean;
-  cancellationReason?: string;
+  assignedUserIds: string[];
+  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'VACANT';
+  cancelledReason?: string;
 }
 
-export type ViewType = 'calendar' | 'planning' | 'users' | 'stats' | 'notifications' | 'personal' | 'register' | 'auth';
+export interface Availability {
+  userId: string;
+  month: string; // YYYY-MM
+  preferences: {
+    week: number;
+    option: 'MAÑANA' | 'TARDE' | 'AMBOS' | 'NADA';
+  }[];
+}
+
+export interface AppNotification {
+  id: string;
+  userId?: string; // If undefined, it's global
+  title: string;
+  message: string;
+  type: 'URGENT' | 'INFO' | 'SHIFT_CHANGE';
+  timestamp: number;
+  read: boolean;
+  actionShiftId?: string;
+}
