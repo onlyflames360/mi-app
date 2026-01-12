@@ -45,7 +45,7 @@ export interface MonthlyAvailability {
   timestamp: string;
 }
 
-export interface Notification {
+export interface AppNotification {
   id: string;
   tipo: 'urgente_cobertura' | 'info' | 'cambio';
   titulo: string;

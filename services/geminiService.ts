@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { User, Shift, MonthlyAvailability, GroundingLink } from "../types";
 
-const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Fix: Strictly follow guidelines for API key usage from process.env.API_KEY
+const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateSmartPlanning = async (
   users: User[],

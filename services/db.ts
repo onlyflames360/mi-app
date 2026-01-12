@@ -1,5 +1,5 @@
 
-import { User, Shift, MonthlyAvailability, Notification, Gender } from '../types';
+import { User, Shift, MonthlyAvailability, AppNotification, Gender } from '../types';
 
 const FEMALE_NAMES = new Set([
   "ABIGAIL", "ADELA", "ANA", "ANABEL", "ANDREA", "ARACELI", "BLANCA", "CONCHI", "DESI", 
@@ -59,35 +59,35 @@ class DB {
   getAvailabilities(): MonthlyAvailability[] { return this.get('availabilities', []); }
   setAvailabilities(avs: MonthlyAvailability[]) { this.set('availabilities', avs); }
 
-  getNotifications(): Notification[] { return this.get('notifications', []); }
+  getNotifications(): AppNotification[] { return this.get('notifications', []); }
   
-  setNotifications(notifs: Notification[]) { 
+  setNotifications(notifs: AppNotification[]) { 
     const oldNotifs = this.getNotifications();
     this.set('notifications', notifs); 
     
-    // Si hay una notificación nueva y es urgente o cambio, disparar notificación de sistema
     if (notifs.length > oldNotifs.length) {
       const latest = notifs[0];
       const userId = this.getCurrentUserId();
-      // Solo notificar si el usuario actual es uno de los destinatarios
       if (latest.destinatarios.includes(userId || '') || latest.destinatarios.includes('all')) {
         this.triggerSystemNotification(latest);
       }
     }
   }
 
-  private triggerSystemNotification(notif: Notification) {
-    if ('serviceWorker' in navigator && Notification.permission === 'granted') {
-      navigator.serviceWorker.ready.then(registration => {
-        registration.active?.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          payload: {
-            title: notif.titulo,
-            body: notif.cuerpo,
-            tag: notif.id
-          }
+  private triggerSystemNotification(notif: AppNotification) {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
+      if (window.Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.active?.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            payload: {
+              title: notif.titulo,
+              body: notif.cuerpo,
+              tag: notif.id
+            }
+          });
         });
-      });
+      }
     }
   }
 

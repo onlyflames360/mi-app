@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
-import { User, Shift, Notification } from '../types';
+import { User, Shift, AppNotification } from '../types';
 
 interface UserTasksProps { user: User; }
 
@@ -20,9 +20,8 @@ const UserTasks: React.FC<UserTasksProps> = ({ user }) => {
     const currentShifts = db.getShifts();
     const updated = currentShifts.map(s => {
       if (s.id === taskId) {
-        // Alerta al Coordinador
         const notifs = db.getNotifications();
-        const coordAlert: Notification = {
+        const coordAlert: AppNotification = {
           id: `coord-alert-${Date.now()}`,
           tipo: 'info',
           titulo: status === 'confirmado' ? 'Turno Confirmado' : 'Baja en Turno',
@@ -34,8 +33,7 @@ const UserTasks: React.FC<UserTasksProps> = ({ user }) => {
         };
 
         if (status === 'rechazado') {
-          // Notificación masiva para cubrir el turno
-          const urgent: Notification = {
+          const urgent: AppNotification = {
             id: `urgent-${Date.now()}`,
             tipo: 'urgente_cobertura',
             titulo: '⚠️ SE NECESITA COBERTURA',
@@ -118,7 +116,6 @@ const UserTasks: React.FC<UserTasksProps> = ({ user }) => {
                   </span>
                 </div>
 
-                {/* Sección de Compañeros */}
                 <div className="mb-6 p-3 bg-slate-50 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                     <i className="fa-solid fa-user-group text-blue-500"></i> Mi compañero/a

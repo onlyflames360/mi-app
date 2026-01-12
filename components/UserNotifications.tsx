@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
-import { User, Notification, Shift } from '../types';
+import { User, AppNotification, Shift } from '../types';
 
 interface UserNotificationsProps { user: User; }
 
 const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
-  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [filter, setFilter] = useState<'all' | 'urgente'>('all');
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
-    typeof Notification !== 'undefined' ? Notification.permission : 'default'
+  const [permissionStatus, setPermissionStatus] = useState<string>(
+    typeof window !== 'undefined' && 'Notification' in window ? window.Notification.permission : 'default'
   );
 
   useEffect(() => {
@@ -23,8 +23,8 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
   };
 
   const requestPermission = async () => {
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const permission = await window.Notification.requestPermission();
       setPermissionStatus(permission);
       if (permission === 'granted') {
         alert("¡Genial! Ahora recibirás avisos incluso con el móvil bloqueado.");
@@ -39,7 +39,7 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
     loadNotifications();
   };
 
-  const handleCoverShift = (notif: Notification) => {
+  const handleCoverShift = (notif: AppNotification) => {
     if (!notif.refTurnoId) return;
 
     const allShifts = db.getShifts();
@@ -70,7 +70,7 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
     };
     db.setShifts(allShifts);
 
-    const coordNotif: Notification = {
+    const coordNotif: AppNotification = {
       id: `cover-coord-${Date.now()}`,
       tipo: 'info',
       titulo: 'Turno Cubierto',
@@ -92,7 +92,6 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Aviso de Permisos */}
       {permissionStatus !== 'granted' && (
         <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-xl shadow-blue-200 flex flex-col md:flex-row items-center justify-between gap-6 animate-in">
           <div className="flex items-center gap-4">

@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from './services/db';
-import { ViewType, Role, User, Notification as AppNotification } from './types';
+// Fix: AppNotification is exported directly from types.ts, no need for aliasing a non-existent 'Notification'
+import { ViewType, Role, User, AppNotification } from './types';
 import Sidebar from './components/Sidebar';
 import UserTasks from './components/UserTasks';
 import UserAvailability from './components/UserAvailability';
