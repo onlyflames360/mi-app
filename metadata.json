@@ -1,11 +1,13 @@
-
 {
-  "name": "PPOC - Planificación de Turnos",
-  "description": "App de gestión de turnos para carritos con reparto inteligente y notificaciones push.",
+  "name": "PPCO - Gestión de Turnos",
+  "short_name": "PPCO",
+  "description": "Sistema avanzado de gestión de turnos, disponibilidad y coordinación de voluntarios.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ],
-  "permissions": [
-    "notifications"
-  ]
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb"
 }

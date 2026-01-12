@@ -1,87 +1,145 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { User, Availability, Shift } from "../types";
+import { User, Shift, MonthlyAvailability, GroundingLink } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
-export const generateMonthlyPlan = async (
+export const generateSmartPlanning = async (
   users: User[],
-  availabilities: Availability[],
-  month: string
+  availabilities: MonthlyAvailability[],
+  month: string,
+  strictSchedule: any
 ): Promise<Shift[]> => {
-  const usersList = users.map(u => `ID: ${u.id} | Hermano: ${u.firstName} ${u.lastName}`).join('\n');
+  const ai = getAi();
+  
+  const usersInfo = users.map(u => ({ 
+    id: u.id, 
+    nombre: u.nombre, 
+    apellidos: u.apellidos 
+  }));
 
   const prompt = `
-    ACTÚA COMO COORDINADOR LOGÍSTICO PARA "HERMANOS DEL PPOC".
-    GENERA EL CALENDARIO PARA EL MES: ${month}.
-
-    REGLAS DE HORARIOS Y UBICACIONES (ESTRICTO SEGÚN IMAGEN):
-    1. MARTES:
-       - Mañana (10:30 - 12:30): Generar turnos para [LA BARBERA, LA CREUETA].
-       - Tarde (17:30 - 19:30): Generar turnos para [EL CENSAL, LA BARBERA].
+    Genera la planificación para el mes ${month} siguiendo estrictamente este esquema:
     
-    2. JUEVES:
-       - Mañana (10:30 - 12:30): Generar turnos para [CENTRO SALUD, LA BARBERA].
-       - Tarde (17:30 - 19:30): Generar turnos para [EL CENSAL, LA BARBERA].
-
-    3. SÁBADOS (SOLO MAÑANA EN DOS BLOQUES):
-       - Bloque 1 (10:30 - 12:00): Generar turnos para [Dr. ESQUERDO, EL CENSAL].
-       - Bloque 2 (12:00 - 13:30): Generar turnos para [Dr. ESQUERDO, EL CENSAL].
-
-    REGLAS DE PROHIBICIÓN ABSOLUTA:
-    - LUNES: TOTALMENTE PROHIBIDO (No generar nada).
-    - MIÉRCOLES: TOTALMENTE PROHIBIDO (No generar nada).
-    - VIERNES: PROHIBIDO (No generar nada).
-    - DOMINGO: PROHIBIDO (No generar nada).
-
-    REGLAS DE ASIGNACIÓN:
-    - LISTA DE VOLUNTARIOS (USA ESTOS IDs):
-    ${usersList}
-    - Asigna entre 2 y 3 hermanos (IDs) por cada ubicación y horario.
-    - Distribución equitativa: Todos los hermanos deben tener turnos asignados durante el mes.
-    - No repetir al mismo hermano el mismo día en distintas ubicaciones.
-    - El campo 'assignedUserIds' debe contener los IDs.
-
-    RESPUESTA: Un array JSON de objetos Shift.
+    HORARIOS Y LUGARES POR DÍA:
+    - MARTES: 10:30-12:30 (LA BARBERA, LA CREUETA) / 17:30-19:30 (EL CENSAL, LA BARBERA)
+    - JUEVES: 10:30-12:30 (CENTRO SALUD, LA BARBERA) / 17:30-19:30 (EL CENSAL, LA BARBERA)
+    - SABADO: 10:30-12:00 (Dr. ESQUERDO, EL CENSAL) y 12:00-13:30 (Dr. ESQUERDO, EL CENSAL)
+    
+    REGLA CRÍTICA DE ASIGNACIÓN:
+    1. Para CADA slot (Día + Lugar + Hora), debes generar EXACTAMENTE 2 entradas de Shift con usuarios DISTINTOS.
+    2. TOTAL DE PERSONAS POR TURNO: 2.
+    3. PRIORIDAD: Agrupa a personas con el MISMO APELLIDO en el mismo slot si es posible.
+    4. Respeta estas disponibilidades: ${JSON.stringify(availabilities)}.
+    5. No asignes a la misma persona dos veces el mismo día.
+    6. Lista de voluntarios: ${JSON.stringify(usersInfo)}.
+    
+    Devuelve un array JSON de objetos Shift (id, fecha, inicio, fin, lugar, franja, estado="pendiente", asignadoA).
   `;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt,
     config: {
-      responseMimeType: "application/json",
+      responseMimeType: 'application/json',
       responseSchema: {
         type: Type.ARRAY,
         items: {
           type: Type.OBJECT,
           properties: {
-            date: { type: Type.STRING, description: "Fecha YYYY-MM-DD" },
-            time: { type: Type.STRING, description: "Horario exacto según reglas" },
-            period: { type: Type.STRING, enum: ["MAÑANA", "TARDE"] },
-            location: { type: Type.STRING },
-            assignedUserIds: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "IDs de los hermanos" 
-            },
-            status: { type: Type.STRING }
+            id: { type: Type.STRING },
+            fecha: { type: Type.STRING },
+            inicio: { type: Type.STRING },
+            fin: { type: Type.STRING },
+            lugar: { type: Type.STRING },
+            franja: { type: Type.STRING },
+            estado: { type: Type.STRING },
+            asignadoA: { type: Type.STRING },
           },
-          required: ["date", "time", "period", "location", "assignedUserIds", "status"]
-        }
+          required: ["id", "fecha", "inicio", "fin", "lugar", "franja", "estado", "asignadoA"]
+        },
       }
     }
   });
 
   try {
-    const text = response.text || "[]";
-    const shifts = JSON.parse(text);
-    return shifts.map((s: any) => ({ 
-      ...s, 
-      id: Math.random().toString(36).substr(2, 9),
-      status: 'PENDING'
-    }));
+    return JSON.parse(response.text || '[]');
   } catch (e) {
-    console.error("Error al procesar la respuesta de Gemini", e);
+    console.error("Error parsing Gemini response", e);
     return [];
   }
+};
+
+export const getStatsAnalysis = async (shifts: Shift[], users: User[]) => {
+  const ai = getAi();
+  const prompt = `Analiza estos turnos brevemente: ${JSON.stringify(shifts)}`;
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt
+  });
+  return response.text || '';
+};
+
+export const generalQuery = async (prompt: string, isComplex: boolean) => {
+  const ai = getAi();
+  const response = await ai.models.generateContent({
+    model: isComplex ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview',
+    contents: prompt,
+    config: isComplex ? { thinkingConfig: { thinkingBudget: 4000 } } : undefined
+  });
+  return response.text || '';
+};
+
+export const editImageWithGemini = async (base64Image: string, prompt: string) => {
+  const ai = getAi();
+  const dataParts = base64Image.split(',');
+  const base64Data = dataParts[1] || dataParts[0];
+  const mimeType = base64Image.match(/data:([^;]+);/)?.[1] || 'image/png';
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [
+        { inlineData: { data: base64Data, mimeType: mimeType } },
+        { text: prompt }
+      ]
+    }
+  });
+
+  let imageUrl = '';
+  if (response.candidates?.[0]?.content?.parts) {
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        break;
+      }
+    }
+  }
+  return { imageUrl };
+};
+
+export const queryMaps = async (prompt: string, location?: { latitude: number; longitude: number }) => {
+  const ai = getAi();
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      tools: [{ googleMaps: {} }],
+      toolConfig: location ? {
+        retrievalConfig: {
+          latLng: { latitude: location.latitude, longitude: location.longitude }
+        }
+      } : undefined
+    }
+  });
+
+  const text = response.text || '';
+  const links: GroundingLink[] = [];
+  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  chunks.forEach((chunk: any) => {
+    if (chunk.maps) {
+      links.push({ uri: chunk.maps.uri, title: chunk.maps.title || 'Ver en Google Maps' });
+    }
+  });
+  return { text, links };
 };
