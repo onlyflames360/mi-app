@@ -12,6 +12,8 @@ export interface User {
   rol: Role;
   activo: boolean;
   genero: Gender;
+  avatarSeed?: string;
+  avatarUrl?: string; // Para fotos subidas por el usuario
   skills?: string[];
 }
 
@@ -61,11 +63,14 @@ export enum ViewType {
   USER_TASKS = 'USER_TASKS',
   USER_AVAILABILITY = 'USER_AVAILABILITY',
   USER_NOTIFICATIONS = 'USER_NOTIFICATIONS',
+  USER_MESSAGING = 'USER_MESSAGING',
+  USER_PROFILE = 'USER_PROFILE',
   COORD_USERS = 'COORD_USERS',
   COORD_PLANNING = 'COORD_PLANNING',
   COORD_CALENDAR = 'COORD_CALENDAR',
   COORD_STATS = 'COORD_STATS',
-  COORD_NOTIFICATIONS = 'COORD_NOTIFICATIONS'
+  COORD_NOTIFICATIONS = 'COORD_NOTIFICATIONS',
+  COORD_MESSAGING = 'COORD_MESSAGING'
 }
 
 export interface GroundingLink {

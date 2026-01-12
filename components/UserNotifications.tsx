@@ -62,7 +62,9 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
 
     const oldUserId = shift.asignadoA;
     const oldUser = db.getUsers().find(u => u.id === oldUserId);
+    const fechaTurno = new Date(shift.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'long' });
     
+    // Actualizar el turno con el nuevo voluntario
     allShifts[shiftIdx] = { 
       ...shift, 
       asignadoA: user.id, 
@@ -70,21 +72,47 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
     };
     db.setShifts(allShifts);
 
+    // 1. Notificación para el COORDINADOR
     const coordNotif: AppNotification = {
       id: `cover-coord-${Date.now()}`,
       tipo: 'info',
-      titulo: 'Turno Cubierto',
-      cuerpo: `${user.nombre} ha cubierto el turno de ${oldUser?.nombre || 'otro voluntario'} en ${shift.lugar}.`,
+      titulo: '✅ Turno Reasignado',
+      cuerpo: `${user.nombre} ${user.apellidos} ha cubierto el turno de ${oldUser?.nombre || 'otro voluntario'} en ${shift.lugar} (${fechaTurno}).`,
       color: 'normal',
       destinatarios: db.getUsers().filter(u => u.rol === 'coordinador').map(u => u.id),
       timestamp: new Date().toISOString(),
       leida: false
     };
 
-    const filteredNotifs = db.getNotifications().filter(n => n.refTurnoId !== notif.refTurnoId);
-    db.setNotifications([coordNotif, ...filteredNotifs]);
+    // 2. Notificación para el USUARIO SALIENTE (el que no podía ir)
+    const oldUserNotif: AppNotification = {
+      id: `cover-old-${Date.now()}`,
+      tipo: 'info',
+      titulo: '🔄 Turno Cubierto',
+      cuerpo: `Tu turno del ${fechaTurno} en ${shift.lugar} ha sido cubierto por ${user.nombre}. No te preocupes, ¡gracias por avisar!`,
+      color: 'normal',
+      destinatarios: [oldUserId],
+      timestamp: new Date().toISOString(),
+      leida: false
+    };
 
-    alert("¡Turno asignado! Gracias por tu colaboración.");
+    // 3. Notificación para el USUARIO ENTRANTE (el que acaba de aceptar)
+    const newUserNotif: AppNotification = {
+      id: `cover-new-${Date.now()}`,
+      tipo: 'info',
+      titulo: '🌟 ¡Gracias por colaborar!',
+      cuerpo: `Has reasignado a tu nombre el turno en ${shift.lugar} para el ${fechaTurno}. Se ha añadido a tus tareas.`,
+      color: 'normal',
+      destinatarios: [user.id],
+      timestamp: new Date().toISOString(),
+      leida: false
+    };
+
+    // Filtrar notificaciones antiguas del mismo turno y añadir las nuevas
+    const currentAllNotifs = db.getNotifications().filter(n => n.refTurnoId !== notif.refTurnoId);
+    db.setNotifications([newUserNotif, oldUserNotif, coordNotif, ...currentAllNotifs]);
+
+    alert(`¡Gracias ${user.nombre}! El turno ahora es tuyo. Hemos avisado al coordinador y a tu compañero/a.`);
     loadNotifications();
   };
 
@@ -133,59 +161,86 @@ const UserNotifications: React.FC<UserNotificationsProps> = ({ user }) => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map(n => (
-            <div 
-              key={n.id} 
-              className={`p-5 rounded-3xl border transition-all relative overflow-hidden ${
-                n.color === 'rojo' 
-                  ? 'bg-red-50 border-red-200' 
-                  : 'bg-white border-slate-100'
-              } ${!n.leida ? 'ring-2 ring-blue-500/10 shadow-lg' : ''}`}
-            >
-              <div className="flex gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
-                  n.tipo === 'urgente_cobertura' ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-100 text-blue-600'
-                }`}>
-                  <i className={`fa-solid ${n.tipo === 'urgente_cobertura' ? 'fa-fire-flame-curved' : 'fa-info-circle'}`}></i>
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start mb-1">
-                    <h3 className={`text-sm font-black ${n.color === 'rojo' ? 'text-red-900' : 'text-slate-800'}`}>{n.titulo}</h3>
-                    <span className="text-[10px] font-bold text-slate-400">
-                      {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+          {filtered.map(n => {
+            const isUrgent = n.tipo === 'urgente_cobertura';
+            
+            return (
+              <div 
+                key={n.id} 
+                className={`group p-6 rounded-[2.5rem] border transition-all relative overflow-hidden ${
+                  isUrgent 
+                    ? 'bg-gradient-to-br from-red-50 via-white to-red-50 border-red-200 shadow-xl shadow-red-100/50 ring-2 ring-red-500/20' 
+                    : 'bg-white border-slate-100 hover:shadow-md shadow-sm'
+                } ${!n.leida && !isUrgent ? 'ring-2 ring-blue-500/10 shadow-lg' : ''}`}
+              >
+                {/* Visual feedback for urgency */}
+                {isUrgent && (
+                  <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse"></div>
+                )}
+
+                <div className="flex gap-5 relative z-10">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+                    isUrgent ? 'bg-red-500 text-white animate-bounce' : 'bg-blue-100 text-blue-600'
+                  }`}>
+                    <i className={`fa-solid ${isUrgent ? 'fa-triangle-exclamation text-xl' : 'fa-info-circle text-lg'}`}></i>
                   </div>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">{n.cuerpo}</p>
                   
-                  {n.tipo === 'urgente_cobertura' && !n.leida && (
-                    <div className="mt-4 flex gap-2">
-                      <button 
-                        onClick={() => handleCoverShift(n)}
-                        className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase rounded-xl shadow-lg shadow-red-100 transition-all"
-                      >
-                        ✅ Cubrir Turno
-                      </button>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex flex-col">
+                        {isUrgent && (
+                          <span className="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] mb-1 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-ping"></span>
+                            Incidencia Crítica
+                          </span>
+                        )}
+                        <h3 className={`text-base font-black leading-tight ${n.color === 'rojo' ? 'text-red-900' : 'text-slate-800'}`}>
+                          {n.titulo}
+                        </h3>
+                      </div>
+                      <span className={`text-[10px] font-bold ${isUrgent ? 'text-red-400' : 'text-slate-400'}`}>
+                        {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+
+                    <div className={`text-sm font-medium leading-relaxed whitespace-pre-line ${
+                      isUrgent ? 'text-red-700/80 bg-red-100/30 p-4 rounded-2xl border border-red-100/50 my-3' : 'text-slate-500'
+                    }`}>
+                      {n.cuerpo}
+                    </div>
+                    
+                    {isUrgent && !n.leida && (
+                      <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                        <button 
+                          onClick={() => handleCoverShift(n)}
+                          className="flex-1 px-8 py-4 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase rounded-2xl shadow-xl shadow-red-200 transition-all flex items-center justify-center gap-3 active:scale-95"
+                        >
+                          <i className="fa-solid fa-check-circle text-lg"></i>
+                          ✅ CUBRIR ESTE TURNO AHORA
+                        </button>
+                        <button 
+                          onClick={() => markAsRead(n.id)}
+                          className="px-8 py-4 bg-white text-slate-400 hover:text-slate-600 text-xs font-black uppercase rounded-2xl border border-slate-200 transition-all flex items-center justify-center gap-2"
+                        >
+                          Omitir
+                        </button>
+                      </div>
+                    )}
+                    
+                    {!n.leida && !isUrgent && (
                       <button 
                         onClick={() => markAsRead(n.id)}
-                        className="px-6 py-2 bg-white text-slate-400 hover:text-slate-600 text-[10px] font-black uppercase rounded-xl border border-slate-200 transition-all"
+                        className="mt-4 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-800 flex items-center gap-2"
                       >
-                        Omitir
+                        <i className="fa-solid fa-check-double"></i>
+                        Marcar como leída
                       </button>
-                    </div>
-                  )}
-                  
-                  {!n.leida && n.tipo !== 'urgente_cobertura' && (
-                    <button 
-                      onClick={() => markAsRead(n.id)}
-                      className="mt-3 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-800"
-                    >
-                      Marcar como leída
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

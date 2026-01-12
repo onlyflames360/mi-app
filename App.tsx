@@ -1,28 +1,42 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from './services/db';
-// Fix: AppNotification is exported directly from types.ts, no need for aliasing a non-existent 'Notification'
 import { ViewType, Role, User, AppNotification } from './types';
 import Sidebar from './components/Sidebar';
 import UserTasks from './components/UserTasks';
 import UserAvailability from './components/UserAvailability';
 import UserNotifications from './components/UserNotifications';
+import UserMessaging from './components/UserMessaging';
+import UserProfile from './components/UserProfile';
 import CoordUsers from './components/CoordUsers';
 import CoordPlanning from './components/CoordPlanning';
 import CoordStats from './components/CoordStats';
 import CoordNotifications from './components/CoordNotifications';
 import CoordCalendar from './components/CoordCalendar';
+import CoordMessaging from './components/CoordMessaging';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.USER_TASKS);
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
+  const [hasEntered, setHasEntered] = useState(false);
   
+  // Install PWA State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallBtn, setShowInstallBtn] = useState(false);
+
   // Login States
   const [loginSearch, setLoginSearch] = useState('');
   const [selectedUserForPass, setSelectedUserForPass] = useState<User | null>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [passError, setPassError] = useState(false);
+
+  const loadNotifications = () => {
+    if (!currentUser) return;
+    const allNotifs = db.getNotifications();
+    const mine = allNotifs.filter(n => n.destinatarios.includes(currentUser.id) || n.destinatarios.includes('all'));
+    setNotifs(mine);
+  };
 
   const loadUser = () => {
     const userId = db.getCurrentUserId();
@@ -31,15 +45,45 @@ const App: React.FC = () => {
       const found = users.find(u => u.id === userId);
       if (found) {
         setCurrentUser(found);
-        setNotifs(db.getNotifications().filter(n => n.destinatarios.includes(found.id) || n.destinatarios.includes('all')));
-        return;
+        setHasEntered(true);
       }
     }
   };
 
   useEffect(() => {
     loadUser();
+
+    // Capturar evento de instalación PWA
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    });
+
+    window.addEventListener('appinstalled', () => {
+      setShowInstallBtn(false);
+      setDeferredPrompt(null);
+    });
   }, []);
+
+  // Sincronizar notificaciones cada 3 segundos o cuando cambie el usuario
+  useEffect(() => {
+    if (currentUser) {
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [currentUser]);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBtn(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   const handleRoleSwitch = (role: Role) => {
     const users = db.getUsers();
@@ -61,6 +105,7 @@ const App: React.FC = () => {
     db.logout();
     setCurrentUser(null);
     setSelectedUserForPass(null);
+    setHasEntered(false);
   };
 
   const attemptLogin = (u: User) => {
@@ -93,15 +138,57 @@ const App: React.FC = () => {
       case ViewType.USER_TASKS: return <UserTasks user={currentUser} />;
       case ViewType.USER_AVAILABILITY: return <UserAvailability user={currentUser} />;
       case ViewType.USER_NOTIFICATIONS: return <UserNotifications user={currentUser} />;
+      case ViewType.USER_MESSAGING: return <UserMessaging user={currentUser} />;
+      case ViewType.USER_PROFILE: return <UserProfile user={currentUser} onUserUpdate={setCurrentUser} />;
       case ViewType.COORD_USERS: return <CoordUsers />;
       case ViewType.COORD_PLANNING: return <CoordPlanning />;
       case ViewType.COORD_CALENDAR: return <CoordCalendar />;
       case ViewType.COORD_STATS: return <CoordStats />;
       case ViewType.COORD_NOTIFICATIONS: return <CoordNotifications />;
+      case ViewType.COORD_MESSAGING: return <CoordMessaging />;
       default: return <UserTasks user={currentUser} />;
     }
   };
 
+  // Pantalla de Bienvenida Inicial
+  if (!hasEntered && !currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 overflow-hidden relative">
+        {/* Elementos decorativos de fondo */}
+        <div className="absolute top-0 -left-20 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px]"></div>
+        <div className="absolute bottom-0 -right-20 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px]"></div>
+        
+        <div className="max-w-xl w-full bg-white rounded-[3rem] p-10 md:p-16 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] text-center animate-in zoom-in duration-700 relative z-10 border border-white/20">
+          <div className="w-24 h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-500/40 mx-auto mb-10 transform -rotate-6">
+            <i className="fa-solid fa-layer-group text-white text-4xl"></i>
+          </div>
+          
+          <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight mb-6">
+            Bienvenidos a la <span className="text-blue-600">PPOC</span>
+          </h1>
+          
+          <p className="text-xl font-bold text-slate-400 uppercase tracking-widest mb-2">La Barbera</p>
+          <p className="text-lg font-medium text-slate-500 mb-12">Villajoyosa</p>
+          
+          <button 
+            onClick={() => setHasEntered(true)}
+            className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-500/30 transition-all active:scale-95 group flex items-center justify-center gap-4"
+          >
+            Entrar a la Plataforma
+            <i className="fa-solid fa-arrow-right group-hover:translate-x-2 transition-transform"></i>
+          </button>
+          
+          <div className="mt-12 flex items-center justify-center gap-6 opacity-30">
+            <i className="fa-solid fa-calendar-check text-2xl"></i>
+            <i className="fa-solid fa-user-group text-2xl"></i>
+            <i className="fa-solid fa-shield-halved text-2xl"></i>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pantalla de Selección de Usuario (Login)
   if (!currentUser) {
     const users = db.getUsers();
     const filteredUsers = users.filter(u => 
@@ -110,7 +197,7 @@ const App: React.FC = () => {
 
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in fade-in zoom-in duration-500 overflow-hidden text-center">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden text-center">
           
           {selectedUserForPass ? (
             <div className="animate-in slide-in-from-right duration-300">
@@ -161,7 +248,7 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h1 className="text-2xl font-black text-slate-800">PPCO</h1>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Acceso</p>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Selecciona tu perfil</p>
                 </div>
               </div>
               
@@ -176,7 +263,7 @@ const App: React.FC = () => {
                 />
               </div>
               
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar text-left">
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map(u => (
                     <button 
@@ -184,8 +271,8 @@ const App: React.FC = () => {
                       onClick={() => attemptLogin(u)}
                       className="w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:border-blue-100 hover:bg-blue-50 transition-all text-left group"
                     >
-                      <div className="w-10 h-10 rounded-full bg-white overflow-hidden shrink-0 border border-slate-200 shadow-sm">
-                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u.nombre}&backgroundColor=ffffff&topType=${u.genero === 'femenino' ? 'longHair,bob,curly' : 'shortHair,theCaesar,frizzle'}`} alt="avatar" />
+                      <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-sm">
+                        <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="avatar" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{u.nombre} {u.apellidos}</p>
@@ -203,7 +290,18 @@ const App: React.FC = () => {
               </div>
               
               <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PWA de Gestión de Turnos</p>
+                {showInstallBtn ? (
+                  <button 
+                    onClick={handleInstallClick}
+                    className="w-full py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-black transition-all active:scale-95 shadow-xl shadow-slate-200"
+                  >
+                    <i className="fa-brands fa-android text-lg text-green-400"></i>
+                    Instalar App en Android
+                    <i className="fa-solid fa-download"></i>
+                  </button>
+                ) : (
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PWA de Gestión de Turnos</p>
+                )}
               </div>
             </div>
           )}
@@ -212,6 +310,7 @@ const App: React.FC = () => {
     );
   }
 
+  // Interfaz Principal (App Dashboard)
   return (
     <div className="flex min-h-screen bg-gray-50 text-slate-900 font-sans">
       {/* Overlay for password prompt when switching role from sidebar */}

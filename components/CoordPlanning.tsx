@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { db } from '../services/db';
 import { generateSmartPlanning } from '../services/geminiService';
@@ -39,7 +40,6 @@ const CoordPlanning: React.FC = () => {
       const users = db.getUsers().filter(u => u.rol === 'usuario');
       const avs = db.getAvailabilities();
       
-      // FIX: Definir nextMonthDate, monthName y year ANTES de usarlas
       const nextMonthDate = new Date();
       nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
       const monthStr = nextMonthDate.toISOString().slice(0, 7);
@@ -49,23 +49,21 @@ const CoordPlanning: React.FC = () => {
       const plan = await generateSmartPlanning(users, avs, monthStr, STRICT_SCHEDULE);
       setPendingPlan(plan);
     } catch (e) {
-      console.error('Error en la planificación:', e);
-      alert("Error en la planificación. Verifica que tu API Key esté configurada.");
+      alert("Error en la planificación rápida. Inténtalo de nuevo.");
     } finally {
       setIsGenerating(false);
     }
   };
-  
+
   const downloadPDF = (planToDownload: Shift[]) => {
     const doc = new jsPDF();
     const users = db.getUsers();
     
-    // FIX: Definir las variables antes de usarlas
     const nextMonthDate = new Date();
     nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
     const monthName = nextMonthDate.toLocaleString('es-ES', { month: 'long' }).toUpperCase();
     const year = nextMonthDate.getFullYear();
-    
+
     doc.setFontSize(14);
     doc.setTextColor(30, 41, 59);
     doc.text(`PPOC DE LA CONGREGACIÓN LA BARBERA PARA`, 105, 15, { align: 'center' });
@@ -91,14 +89,14 @@ const CoordPlanning: React.FC = () => {
       }
       return acc;
     }, []).sort((a, b) => a.fechaRaw.localeCompare(b.fechaRaw));
-    
+
     const finalRows = tableData.map(r => [
       r.fecha.charAt(0).toUpperCase() + r.fecha.slice(1),
       r.horario,
       r.lugar,
       r.voluntarios.join(' – ')
     ]);
-    
+
     autoTable(doc, {
       startY: 30,
       head: [['FECHA', 'HORARIO', 'UBICACIÓN', 'NOMBRES']],
@@ -114,10 +112,10 @@ const CoordPlanning: React.FC = () => {
       alternateRowStyles: { fillColor: [250, 251, 253] },
       margin: { left: 14, right: 14 }
     });
-    
+
     doc.save(`Plan_PPCO_${monthName}_${year}.pdf`);
   };
-  
+
   const handlePublish = () => {
     const existing = db.getShifts();
     db.setShifts([...existing, ...pendingPlan]);
@@ -136,7 +134,7 @@ const CoordPlanning: React.FC = () => {
     db.setNotifications([info, ...notifs]);
     setShowDownloadSuccess(true);
   };
-  
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
@@ -170,7 +168,7 @@ const CoordPlanning: React.FC = () => {
             </button>
           ) : (
             <div className="flex-1 flex gap-3">
-              <button 
+               <button 
                 onClick={() => downloadPDF(pendingPlan)}
                 className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-xl shadow-red-100"
               >
@@ -187,7 +185,7 @@ const CoordPlanning: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {pendingPlan.length > 0 && !showDownloadSuccess && (
         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-lg animate-in slide-in-from-bottom-4">
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
@@ -205,6 +203,7 @@ const CoordPlanning: React.FC = () => {
               </button>
             </div>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
             {pendingPlan.reduce((acc: any[], p) => {
               const key = `${p.fecha}-${p.lugar}-${p.inicio}`;
@@ -229,7 +228,7 @@ const CoordPlanning: React.FC = () => {
                   {group.users.map((u: User, uIdx: number) => (
                     <div key={uIdx} className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
-                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u?.nombre}&backgroundColor=ffffff&size=32`} alt="avatar" />
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u?.avatarSeed || u?.nombre}&backgroundColor=ffffff&size=32&topType=${u?.genero === 'femenino' ? 'longHair,bob,curly' : 'shortHair,theCaesar,frizzle'}`} alt="avatar" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-600 truncate">{u?.nombre} {u?.apellidos}</span>
                     </div>

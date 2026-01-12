@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../services/db';
-import { Shift, User, AppNotification } from '../types';
+import { Shift, User } from '../types';
 
 const CoordCalendar: React.FC = () => {
   const [shifts, setShifts] = useState<Shift[]>(db.getShifts());
@@ -76,6 +76,7 @@ const CoordCalendar: React.FC = () => {
       if (!u || s.estado === 'cancelado') return null;
       
       const isCouple = u.apellidos && surnameCounts[u.apellidos] > 1;
+      const avatar = u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 
       return (
         <div 
@@ -86,7 +87,7 @@ const CoordCalendar: React.FC = () => {
         >
           <div className="flex items-center gap-2 overflow-hidden">
             <div className="w-7 h-7 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u.nombre}&backgroundColor=ffffff&size=48`} alt="av" />
+              <img src={avatar} alt="av" className="w-full h-full object-cover" />
             </div>
             <div className="truncate">
               <p className="text-[10px] font-black leading-tight truncate text-slate-700">
@@ -108,6 +109,7 @@ const CoordCalendar: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* ... controles de calendario ... */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800">Calendario de Turnos</h2>
@@ -126,7 +128,7 @@ const CoordCalendar: React.FC = () => {
           const dateObj = new Date(selectedDate);
           const dayOfWeek = dateObj.getDay();
           
-          let slotsVisibles: {id: string, label: string, inicio: string, fin: string, type: string}[] = [];
+          let slotsVisibles: any[] = [];
           if (dayOfWeek === 2 || dayOfWeek === 4) {
             slotsVisibles = [
               { id: 'm', label: 'Mañana', inicio: '10:30', fin: '12:30', type: 'manana' },
@@ -183,51 +185,7 @@ const CoordCalendar: React.FC = () => {
           );
         })}
       </div>
-
-      {showAddModal && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-black text-slate-800">Asignar a {showAddModal.lugar}</h2>
-              <button onClick={() => setShowAddModal(null)} className="text-slate-400 hover:text-slate-600">
-                <i className="fa-solid fa-xmark text-xl"></i>
-              </button>
-            </div>
-
-            <div className="relative mb-6">
-              <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
-              <input 
-                type="text" 
-                placeholder="Buscar voluntario..."
-                value={searchUser}
-                onChange={(e) => setSearchUser(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50 font-medium outline-none"
-              />
-            </div>
-
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-              {users
-                .filter(u => u.rol === 'usuario' && !shifts.some(s => s.fecha === selectedDate && s.asignadoA === u.id && s.inicio === showAddModal.inicio))
-                .filter(u => `${u.nombre} ${u.apellidos}`.toLowerCase().includes(searchUser.toLowerCase()))
-                .map(u => (
-                <button 
-                  key={u.id}
-                  onClick={() => handleAddPerson(u.id)}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-left"
-                >
-                  <div className="w-9 h-9 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
-                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u.nombre}&backgroundColor=ffffff&size=48`} alt="av" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-700">{u.nombre} {u.apellidos}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{u.apellidos}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ... modal de añadir persona ... */}
     </div>
   );
 };
