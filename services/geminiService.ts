@@ -128,4 +128,19 @@ export const queryMaps = async (prompt: string, location?: { latitude: number; l
       tools: [{ googleMaps: {} }],
       toolConfig: location ? {
         retrievalConfig: {
-          latLng: { latitude: location.latitude, longitude: location.longitude
+          latLng: { latitude: location.latitude, longitude: location.longitude }
+        }
+      } : undefined
+    }
+  });
+
+  const text = response.text || '';
+  const links: GroundingLink[] = [];
+  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  chunks.forEach((chunk: any) => {
+    if (chunk.maps) {
+      links.push({ uri: chunk.maps.uri, title: chunk.maps.title || 'Ver en Google Maps' });
+    }
+  });
+  return { text, links };
+};
