@@ -19,22 +19,22 @@ export const generateSmartPlanning = async (
   }));
 
   const prompt = `
-    Genera la planificación para el mes ${month} siguiendo estrictamente este esquema:
+    Genera la planificación para el mes ${month}.
     
-    HORARIOS Y LUGARES POR DÍA:
-    - MARTES: 10:30-12:30 (LA BARBERA, LA CREUETA) / 17:30-19:30 (EL CENSAL, LA BARBERA)
-    - JUEVES: 10:30-12:30 (CENTRO SALUD, LA BARBERA) / 17:30-19:30 (EL CENSAL, LA BARBERA)
-    - SABADO: 10:30-12:00 (Dr. ESQUERDO, EL CENSAL) y 12:00-13:30 (Dr. ESQUERDO, EL CENSAL)
+    HORARIOS ESTRICTOS (Solo Martes, Jueves y Sábados):
+    - Martes: 10:30-12:30 (LA BARBERA, LA CREUETA) / 17:30-19:30 (EL CENSAL, LA BARBERA)
+    - Jueves: 10:30-12:30 (CENTRO SALUD, LA BARBERA) / 17:30-19:30 (EL CENSAL, LA BARBERA)
+    - Sábado: 10:30-12:00 (Dr. ESQUERDO, EL CENSAL) y 12:00-13:30 (Dr. ESQUERDO, EL CENSAL)
     
-    REGLA CRÍTICA DE ASIGNACIÓN:
-    1. Para CADA slot (Día + Lugar + Hora), debes generar EXACTAMENTE 2 entradas de Shift con usuarios DISTINTOS.
-    2. TOTAL DE PERSONAS POR TURNO: 2.
-    3. PRIORIDAD: Agrupa a personas con el MISMO APELLIDO en el mismo slot si es posible.
-    4. Respeta estas disponibilidades: ${JSON.stringify(availabilities)}.
-    5. No asignes a la misma persona dos veces el mismo día.
-    6. Lista de voluntarios: ${JSON.stringify(usersInfo)}.
+    REGLA DE ORO:
+    - Para CADA lugar y CADA hora en los días indicados, debes asignar EXACTAMENTE a 2 personas (2 objetos Shift por slot).
+    - Prioriza agrupar personas con el MISMO APELLIDO en el mismo slot.
+    - No asignes a la misma persona más de una vez el mismo día.
+    - Respeta estas disponibilidades: ${JSON.stringify(availabilities)}.
+    - Usuarios disponibles: ${JSON.stringify(usersInfo)}.
     
     Devuelve un array JSON de objetos Shift (id, fecha, inicio, fin, lugar, franja, estado="pendiente", asignadoA).
+    "franja" debe ser: "manana", "tarde" o "sabado".
   `;
 
   const response = await ai.models.generateContent({
@@ -63,7 +63,8 @@ export const generateSmartPlanning = async (
   });
 
   try {
-    return JSON.parse(response.text || '[]');
+    const text = response.text || '[]';
+    return JSON.parse(text);
   } catch (e) {
     console.error("Error parsing Gemini response", e);
     return [];

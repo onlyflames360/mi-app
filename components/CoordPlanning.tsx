@@ -6,28 +6,6 @@ import { Shift, User } from '../types';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Configuración estricta basada en la imagen del usuario
-const STRICT_SCHEDULE = {
-  2: [ // Martes
-    { lugar: "LA BARBERA", inicio: "10:30", fin: "12:30", franja: "manana" },
-    { lugar: "LA CREUETA", inicio: "10:30", fin: "12:30", franja: "manana" },
-    { lugar: "EL CENSAL", inicio: "17:30", fin: "19:30", franja: "tarde" },
-    { lugar: "LA BARBERA", inicio: "17:30", fin: "19:30", franja: "tarde" }
-  ],
-  4: [ // Jueves
-    { lugar: "CENTRO SALUD", inicio: "10:30", fin: "12:30", franja: "manana" },
-    { lugar: "LA BARBERA", inicio: "10:30", fin: "12:30", franja: "manana" },
-    { lugar: "EL CENSAL", inicio: "17:30", fin: "19:30", franja: "tarde" },
-    { lugar: "LA BARBERA", inicio: "17:30", fin: "19:30", franja: "tarde" }
-  ],
-  6: [ // Sábado
-    { lugar: "Dr. ESQUERDO", inicio: "10:30", fin: "12:00", franja: "sabado" },
-    { lugar: "Dr. ESQUERDO", inicio: "12:00", fin: "13:30", franja: "sabado" },
-    { lugar: "EL CENSAL", inicio: "10:30", fin: "12:00", franja: "sabado" },
-    { lugar: "EL CENSAL", inicio: "12:00", fin: "13:30", franja: "sabado" }
-  ]
-};
-
 const CoordPlanning: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Shift[]>([]);
@@ -43,13 +21,11 @@ const CoordPlanning: React.FC = () => {
       const nextMonthDate = new Date();
       nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
       const monthStr = nextMonthDate.toISOString().slice(0, 7);
-      const monthName = nextMonthDate.toLocaleString('es-ES', { month: 'long' }).toUpperCase();
-      const year = nextMonthDate.getFullYear();
       
-      const plan = await generateSmartPlanning(users, avs, monthStr, STRICT_SCHEDULE);
+      const plan = await generateSmartPlanning(users, avs, monthStr, {});
       setPendingPlan(plan);
     } catch (e) {
-      alert("Error en la planificación rápida. Inténtalo de nuevo.");
+      alert("Error en la planificación. Inténtalo de nuevo.");
     } finally {
       setIsGenerating(false);
     }
@@ -124,8 +100,8 @@ const CoordPlanning: React.FC = () => {
     const info: any = {
       id: `plan-${Date.now()}`,
       tipo: 'info',
-      titulo: '🗓️ Nueva Planificación Mensual',
-      cuerpo: `Se han publicado los turnos siguiendo los horarios oficiales de La Barbera. ¡Revisa tu calendario!`,
+      titulo: '🗓️ Nueva Planificación',
+      cuerpo: `Turnos publicados para el próximo mes con parejas asignadas por la IA.`,
       color: 'normal',
       destinatarios: ['all'],
       timestamp: new Date().toISOString(),
@@ -142,9 +118,9 @@ const CoordPlanning: React.FC = () => {
           <i className="fa-solid fa-clock-rotate-left text-8xl text-blue-600"></i>
         </div>
         
-        <h2 className="text-2xl font-black text-slate-800 mb-2">Generación con Horarios Oficiales</h2>
+        <h2 className="text-2xl font-black text-slate-800 mb-2">Generador de Parejas Automático</h2>
         <p className="text-slate-500 font-medium mb-8 max-w-2xl">
-          El sistema solo creará turnos los <b>Martes, Jueves y Sábados</b> en las ubicaciones y horas exactas de la congregación.
+          Gemini 3 Flash asignará <b>2 personas por slot</b> siguiendo los horarios oficiales de Martes, Jueves y Sábados.
         </p>
         
         <div className="flex flex-col md:flex-row gap-4">
@@ -157,12 +133,12 @@ const CoordPlanning: React.FC = () => {
               {isGenerating ? (
                 <>
                   <i className="fa-solid fa-bolt animate-pulse"></i>
-                  Sincronizando horarios oficiales...
+                  Asignando parejas voluntarias...
                 </>
               ) : (
                 <>
                   <i className="fa-solid fa-wand-magic-sparkles"></i>
-                  Generar Planificación Fiel
+                  Iniciar Planificación de Parejas
                 </>
               )}
             </button>
@@ -177,9 +153,9 @@ const CoordPlanning: React.FC = () => {
               </button>
               <button 
                 onClick={() => { setPendingPlan([]); setShowDownloadSuccess(false); }}
-                className="px-8 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition-all"
+                className="px-8 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition-all text-sm"
               >
-                Cerrar
+                Limpiar
               </button>
             </div>
           )}
@@ -190,18 +166,15 @@ const CoordPlanning: React.FC = () => {
         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-lg animate-in slide-in-from-bottom-4">
           <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
             <div>
-              <h3 className="text-lg font-black text-slate-800">Vista Previa del Cuadrante</h3>
-              <p className="text-xs font-bold text-slate-400 uppercase mt-1">Sincronizado con el modelo oficial</p>
+              <h3 className="text-lg font-black text-slate-800">Grupos Generados</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase mt-1">Cada bloque contiene 2 asignaciones</p>
             </div>
-            <div className="flex gap-3">
-              <button 
-                onClick={handlePublish}
-                className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-black rounded-xl text-sm transition-all shadow-lg shadow-green-100"
-              >
-                <i className="fa-solid fa-paper-plane mr-2"></i>
-                Confirmar y Publicar
-              </button>
-            </div>
+            <button 
+              onClick={handlePublish}
+              className="px-8 py-3 bg-green-500 hover:bg-green-600 text-white font-black rounded-xl text-sm transition-all shadow-lg"
+            >
+              Confirmar y Publicar
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
@@ -213,22 +186,22 @@ const CoordPlanning: React.FC = () => {
                 acc.push(group);
               }
               const user = db.getUsers().find(u => u.id === p.asignadoA);
-              group.users.push(user);
+              if (user) group.users.push(user);
               return acc;
             }, []).sort((a,b) => a.fecha.localeCompare(b.fecha)).map((group, idx) => (
-              <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[10px] font-black text-blue-600 uppercase">
                     {new Date(group.fecha).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}
                   </span>
-                  <span className="text-[10px] font-bold text-blue-600">{group.inicio}-{group.fin}</span>
+                  <span className="text-[10px] font-bold text-slate-400">{group.inicio}-{group.fin}</span>
                 </div>
-                <p className="text-xs font-black text-slate-800 mb-3 truncate">{group.lugar}</p>
-                <div className="space-y-1">
+                <p className="text-xs font-black text-slate-800 mb-4 truncate">{group.lugar}</p>
+                <div className="space-y-2">
                   {group.users.map((u: User, uIdx: number) => (
                     <div key={uIdx} className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
-                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u?.nombre}&backgroundColor=ffffff&size=32`} alt="avatar" />
+                      <div className="w-5 h-5 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u?.nombre}&backgroundColor=ffffff&size=32`} alt="av" />
                       </div>
                       <span className="text-[10px] font-bold text-slate-600 truncate">{u?.nombre} {u?.apellidos}</span>
                     </div>
