@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../services/db';
-import { Shift, User, Notification as AppNotif } from '../types';
+import { Shift, User, Notification as AppNotification } from '../types';
 
 const CoordCalendar: React.FC = () => {
   const [shifts, setShifts] = useState<Shift[]>(db.getShifts());
@@ -23,9 +23,9 @@ const CoordCalendar: React.FC = () => {
 
     dayShifts.forEach(s => {
       if (!groups[s.lugar]) groups[s.lugar] = {};
-      const slotKey = `${s.inicio}-${s.fin}`;
-      if (!groups[s.lugar][slotKey]) groups[s.lugar][slotKey] = [];
-      groups[s.lugar][slotKey].push(s);
+      const franjaKey = `${s.franja}-${s.inicio}`;
+      if (!groups[s.lugar][franjaKey]) groups[s.lugar][franjaKey] = [];
+      groups[s.lugar][franjaKey].push(s);
     });
 
     return groups;
@@ -37,7 +37,7 @@ const CoordCalendar: React.FC = () => {
     if (!showAddModal) return;
     
     const newUserShift: Shift = {
-      id: `s-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: `s-${Date.now()}`,
       fecha: selectedDate,
       lugar: showAddModal.lugar,
       franja: showAddModal.franja as any,
@@ -47,7 +47,7 @@ const CoordCalendar: React.FC = () => {
       asignadoA: userId
     };
 
-    const updated = [...db.getShifts(), newUserShift];
+    const updated = [...shifts, newUserShift];
     db.setShifts(updated);
     setShifts(updated);
     setShowAddModal(null);
@@ -66,16 +66,15 @@ const CoordCalendar: React.FC = () => {
     
     const surnameCounts: Record<string, number> = {};
     usersInShift.forEach(u => {
-      if (u.apellidos) {
-        surnameCounts[u.apellidos] = (surnameCounts[u.apellidos] || 0) + 1;
-      }
+      surnameCounts[u.apellidos] = (surnameCounts[u.apellidos] || 0) + 1;
     });
 
     return groupShifts.map(s => {
       const u = users.find(user => user.id === s.asignadoA);
-      if (!u || s.estado === 'cancelado') return null;
-      
-      const isCouple = u.apellidos && surnameCounts[u.apellidos] > 1;
+      if (!u) return null;
+      const isCouple = surnameCounts[u.apellidos] > 1;
+      const isCancelled = s.estado === 'cancelado';
+      if (isCancelled) return null;
 
       return (
         <div 
@@ -111,68 +110,68 @@ const CoordCalendar: React.FC = () => {
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800">Calendario de Turnos</h2>
-          <p className="text-slate-500 text-sm font-medium tracking-tight">IA genera 2 personas. Tú añades el refuerzo si es necesario.</p>
+          <p className="text-slate-500 text-sm font-medium">Gestión libre: la IA genera parejas y tú añades los refuerzos.</p>
         </div>
         <input 
           type="date" 
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none"
+          className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-400"
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {allPlaces.map(lugar => {
-          const dateObj = new Date(selectedDate);
-          const dayOfWeek = dateObj.getDay();
+          const dayOfWeek = new Date(selectedDate).getDay();
           
-          let slotsVisibles: {id: string, label: string, inicio: string, fin: string, type: string}[] = [];
-          if (dayOfWeek === 2 || dayOfWeek === 4) { // Martes (2) o Jueves (4)
-            slotsVisibles = [
-              { id: 'm', label: 'Mañana', inicio: '10:30', fin: '12:30', type: 'manana' },
-              { id: 't', label: 'Tarde', inicio: '17:30', fin: '19:30', type: 'tarde' }
+          // Definir franjas según el día
+          let franjasVisibles: {id: string, label: string, inicio: string, fin: string}[] = [];
+          if (dayOfWeek === 2 || dayOfWeek === 4) { // Martes o Jueves
+            franjasVisibles = [
+              { id: 'manana', label: 'Mañana', inicio: '10:30', fin: '12:30' },
+              { id: 'tarde', label: 'Tarde', inicio: '17:30', fin: '19:30' }
             ];
-          } else if (dayOfWeek === 6) { // Sábado (6)
-            slotsVisibles = [
-              { id: 's1', label: 'Sábado (1)', inicio: '10:30', fin: '12:00', type: 'sabado' },
-              { id: 's2', label: 'Sábado (2)', inicio: '12:00', fin: '13:30', type: 'sabado' }
+          } else if (dayOfWeek === 6) { // Sábado
+            franjasVisibles = [
+              { id: 'sabado1', label: 'Sábado (1)', inicio: '10:30', fin: '12:00' },
+              { id: 'sabado2', label: 'Sábado (2)', inicio: '12:00', fin: '13:30' }
             ];
           }
 
-          if (slotsVisibles.length === 0) return null;
+          if (franjasVisibles.length === 0) return null;
 
           return (
-            <div key={lugar} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col animate-in">
-              <div className="p-4 bg-slate-50 border-b border-slate-100">
+            <div key={lugar} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                 <h3 className="font-black text-slate-800 flex items-center gap-2">
                   <i className="fa-solid fa-location-dot text-blue-500 text-xs"></i>
                   {lugar}
                 </h3>
               </div>
               
-              <div className="p-4 flex-1 space-y-6">
-                {slotsVisibles.map(slot => {
-                  const slotKey = `${slot.inicio}-${slot.fin}`;
-                  const currentShifts = (groupedShifts[lugar] && groupedShifts[lugar][slotKey]) || [];
-                  const activeCount = currentShifts.filter(s => s.estado !== 'cancelado').length;
+              <div className="p-4 flex-1 space-y-4">
+                {franjasVisibles.map(f => {
+                  const key = `${f.id}-${f.inicio}`;
+                  const currentShifts = (groupedShifts[lugar] && groupedShifts[lugar][key]) || [];
+                  const count = currentShifts.filter(s => s.estado !== 'cancelado').length;
 
                   return (
-                    <div key={slot.id} className="space-y-2">
+                    <div key={f.id} className="space-y-2">
                       <div className="flex items-center justify-between px-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{slot.label} ({slot.inicio})</p>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeCount >= 2 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                          {activeCount} Voluntarios
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{f.label} ({f.inicio}-{f.fin})</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${count >= 2 ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {count} Pers.
                         </span>
                       </div>
 
                       <div className="p-2 rounded-2xl min-h-[80px] border border-dashed bg-slate-50/50 border-slate-200">
                         {renderShiftUsers(currentShifts)}
                         <button 
-                          onClick={() => setShowAddModal({ lugar, franja: slot.type, inicio: slot.inicio, fin: slot.fin })}
-                          className="w-full py-2 mt-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all flex items-center justify-center gap-2"
+                          onClick={() => setShowAddModal({ lugar, franja: f.id, inicio: f.inicio, fin: f.fin })}
+                          className="w-full py-2 mt-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center gap-2 group"
                         >
-                          <i className="fa-solid fa-plus-circle"></i>
-                          {activeCount >= 2 ? 'Añadir 3º Voluntario' : 'Añadir Voluntario'}
+                          <i className="fa-solid fa-user-plus group-hover:scale-110"></i>
+                          {count >= 2 ? 'Añadir 3º (o más)' : 'Añadir Voluntario'}
                         </button>
                       </div>
                     </div>
@@ -185,15 +184,9 @@ const CoordCalendar: React.FC = () => {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-black text-slate-800">Asignar a {showAddModal.lugar}</h2>
-              <button onClick={() => setShowAddModal(null)} className="text-slate-400 hover:text-slate-600">
-                <i className="fa-solid fa-xmark text-xl"></i>
-              </button>
-            </div>
-
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 text-center">
+          <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in zoom-in duration-300">
+            <h2 className="text-xl font-black text-slate-800 mb-6 text-left">Refuerzo para {showAddModal.lugar}</h2>
             <div className="relative mb-6">
               <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
               <input 
@@ -201,10 +194,9 @@ const CoordCalendar: React.FC = () => {
                 placeholder="Buscar voluntario..."
                 value={searchUser}
                 onChange={(e) => setSearchUser(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50 font-medium outline-none"
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50 font-medium"
               />
             </div>
-
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
               {users
                 .filter(u => u.rol === 'usuario' && !shifts.some(s => s.fecha === selectedDate && s.asignadoA === u.id && s.inicio === showAddModal.inicio))
@@ -215,7 +207,7 @@ const CoordCalendar: React.FC = () => {
                   onClick={() => handleAddPerson(u.id)}
                   className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-left"
                 >
-                  <div className="w-9 h-9 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
                     <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u.nombre}&backgroundColor=ffffff&size=48`} alt="av" />
                   </div>
                   <div>
@@ -225,6 +217,7 @@ const CoordCalendar: React.FC = () => {
                 </button>
               ))}
             </div>
+            <button onClick={() => setShowAddModal(null)} className="mt-6 text-sm font-black text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancelar</button>
           </div>
         </div>
       )}
