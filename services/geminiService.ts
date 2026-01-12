@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { User, Shift, MonthlyAvailability, GroundingLink } from "../types";
 
 // Inicialización siguiendo estrictamente la normativa de process.env.API_KEY
-const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const generateSmartPlanning = async (
   users: User[],
@@ -136,11 +136,17 @@ export const queryMaps = async (prompt: string, location?: { latitude: number; l
 
   const text = response.text || '';
   const links: GroundingLink[] = [];
-  const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+  const chunks = groundingMetadata?.groundingChunks || [];
+  
   chunks.forEach((chunk: any) => {
     if (chunk.maps) {
-      links.push({ uri: chunk.maps.uri, title: chunk.maps.title || 'Ver en Google Maps' });
+      links.push({ 
+        uri: chunk.maps.uri, 
+        title: chunk.maps.title || 'Ver en Google Maps' 
+      });
     }
   });
+  
   return { text, links };
 };
