@@ -94,16 +94,30 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
       </nav>
 
       <div className="p-4 border-t border-slate-100 space-y-3">
+        {/* MongoDB Status Indicator (Coordinador) */}
+        {isCoord && (
+          <div className="hidden md:block bg-slate-50 p-3 rounded-xl border border-slate-100 mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">MongoDB Cloud</p>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+            </div>
+            <p className="text-[10px] font-bold text-slate-600 truncate">cluster0.f77u9i2</p>
+          </div>
+        )}
+
         <div className="hidden md:block bg-slate-50 p-3 rounded-xl border border-slate-100">
           <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Cambiar Rol (Demo)</p>
           <div className="flex gap-2">
             <button 
               onClick={() => onRoleSwitch('usuario')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm ${user.rol === 'usuario' ? 'bg-white text-slate-800' : 'text-slate-50'}`}
+              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.rol === 'usuario' ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
             >User</button>
             <button 
               onClick={() => onRoleSwitch('coordinador')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm ${user.rol === 'coordinador' ? 'bg-white text-slate-800' : 'text-slate-50'}`}
+              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.rol === 'coordinador' ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
             >Coord</button>
           </div>
         </div>

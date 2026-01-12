@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.USER_TASKS);
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [hasEntered, setHasEntered] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Install PWA State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -66,7 +67,6 @@ const App: React.FC = () => {
     });
   }, []);
 
-  // Sincronizar notificaciones cada 3 segundos o cuando cambie el usuario
   useEffect(() => {
     if (currentUser) {
       loadNotifications();
@@ -74,6 +74,12 @@ const App: React.FC = () => {
       return () => clearInterval(interval);
     }
   }, [currentUser]);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    await db.syncToCloud();
+    setIsSyncing(false);
+  };
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
@@ -150,11 +156,9 @@ const App: React.FC = () => {
     }
   };
 
-  // Pantalla de Bienvenida Inicial
   if (!hasEntered && !currentUser) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 overflow-hidden relative">
-        {/* Elementos decorativos de fondo */}
         <div className="absolute top-0 -left-20 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px]"></div>
         <div className="absolute bottom-0 -right-20 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px]"></div>
         
@@ -163,20 +167,32 @@ const App: React.FC = () => {
             <i className="fa-solid fa-layer-group text-white text-4xl"></i>
           </div>
           
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 leading-tight mb-6">
-            Bienvenidos a la <span className="text-blue-600">PPOC</span>
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 leading-tight mb-4">
+            Bienvenidos a la <br/> <span className="text-blue-600">PPOC</span>
           </h1>
           
-          <p className="text-xl font-bold text-slate-400 uppercase tracking-widest mb-2">La Barbera</p>
-          <p className="text-lg font-medium text-slate-500 mb-12">Villajoyosa</p>
+          <p className="text-xl font-bold text-slate-800 mb-2">La Barbera Villajoyosa</p>
+          <p className="text-slate-500 mb-10 font-medium">Gestión inteligente de turnos y voluntarios.</p>
           
-          <button 
-            onClick={() => setHasEntered(true)}
-            className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-500/30 transition-all active:scale-95 group flex items-center justify-center gap-4"
-          >
-            Entrar a la Plataforma
-            <i className="fa-solid fa-arrow-right group-hover:translate-x-2 transition-transform"></i>
-          </button>
+          <div className="space-y-4">
+            <button 
+              onClick={() => setHasEntered(true)}
+              className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-500/30 transition-all active:scale-95 group flex items-center justify-center gap-4"
+            >
+              Entrar a la Plataforma
+              <i className="fa-solid fa-arrow-right group-hover:translate-x-2 transition-transform"></i>
+            </button>
+
+            {showInstallBtn && (
+              <button 
+                onClick={handleInstallClick}
+                className="w-full py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all animate-in fade-in"
+              >
+                <i className="fa-brands fa-android text-green-400"></i>
+                Instalar App en Android
+              </button>
+            )}
+          </div>
           
           <div className="mt-12 flex items-center justify-center gap-6 opacity-30">
             <i className="fa-solid fa-calendar-check text-2xl"></i>
@@ -188,7 +204,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Pantalla de Selección de Usuario (Login)
   if (!currentUser) {
     const users = db.getUsers();
     const filteredUsers = users.filter(u => 
@@ -247,7 +262,7 @@ const App: React.FC = () => {
                   <i className="fa-solid fa-layer-group text-white text-2xl"></i>
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black text-slate-800">PPCO</h1>
+                  <h1 className="text-2xl font-black text-slate-800">Acceso</h1>
                   <p className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Selecciona tu perfil</p>
                 </div>
               </div>
@@ -310,10 +325,8 @@ const App: React.FC = () => {
     );
   }
 
-  // Interfaz Principal (App Dashboard)
   return (
     <div className="flex min-h-screen bg-gray-50 text-slate-900 font-sans">
-      {/* Overlay for password prompt when switching role from sidebar */}
       {selectedUserForPass && (
         <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 text-center">
           <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in zoom-in duration-300">
@@ -365,7 +378,7 @@ const App: React.FC = () => {
       
       <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto">
         <div className="max-w-6xl mx-auto pb-20">
-          <header className="mb-8 flex items-center justify-between">
+          <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-black text-slate-800 tracking-tight">
                 Hola, {currentUser.nombre} 👋
@@ -374,12 +387,22 @@ const App: React.FC = () => {
                 {currentUser.rol === 'coordinador' ? 'Panel de Gestión Estratégica' : 'Gestión de tus turnos y tareas'}
               </p>
             </div>
-            <div className="hidden md:flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estado Local</p>
+            <div className="flex items-center gap-3">
+              {currentUser.rol === 'coordinador' && (
+                <button 
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                >
+                  <i className={`fa-solid fa-cloud-arrow-up ${isSyncing ? 'animate-bounce' : ''}`}></i>
+                  {isSyncing ? 'Sincronizando...' : 'Sync MongoDB'}
+                </button>
+              )}
+              <div className="hidden md:block text-right">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Estado Local</p>
                 <div className="flex items-center gap-2 justify-end">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-sm font-bold text-slate-600">Sincronizado</span>
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-[11px] font-bold text-slate-600">Sincronizado</span>
                 </div>
               </div>
             </div>

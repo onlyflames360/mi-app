@@ -1,13 +1,28 @@
+
 {
-  "name": "PPCO - Gestión de Turnos",
+  "name": "PPCO - La Barbera",
   "short_name": "PPCO",
-  "description": "Sistema avanzado de gestión de turnos, disponibilidad y coordinación de voluntarios.",
+  "description": "Gestión de turnos y coordinación para La Barbera Villajoyosa.",
   "requestFramePermissions": [
     "camera",
     "geolocation"
   ],
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb"
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=PPCO&backgroundColor=2563eb",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=PPCO&backgroundColor=2563eb",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

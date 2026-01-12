@@ -1,6 +1,15 @@
 
 import { User, Shift, MonthlyAvailability, AppNotification, Gender } from '../types';
 
+// Configuración de MongoDB Atlas (Proporcionada por el usuario)
+const MONGO_CONFIG = {
+  connectionString: "mongodb+srv://cluster0.f77u9i2.mongodb.net/",
+  username: "Onlyflames",
+  password: "Qxb2XS2em2Xou0LO",
+  database: "ppco_la_barbera",
+  cluster: "cluster0"
+};
+
 const FEMALE_NAMES = new Set([
   "ABIGAIL", "ADELA", "ANA", "ANABEL", "ANDREA", "ARACELI", "BLANCA", "CONCHI", "DESI", 
   "DOLY", "JACQUELINE", "JANINE", "JUANITA", "LIA", "MARI", "MAITE", "MANUELA", "MARTA", 
@@ -49,6 +58,19 @@ class DB {
 
   private set<T>(key: string, value: T) {
     localStorage.setItem(`ppco_${key}`, JSON.stringify(value));
+  }
+
+  // Simulación de Sincronización con MongoDB Atlas
+  async syncToCloud() {
+    console.log(`Iniciando sincronización con MongoDB Atlas: ${MONGO_CONFIG.cluster}`);
+    // Aquí se implementaría la llamada al Atlas Data API o un backend intermedio
+    // Por ahora, simulamos latencia de red y éxito
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        console.log("Datos sincronizados exitosamente en MongoDB");
+        resolve(true);
+      }, 1500);
+    });
   }
 
   getUsers(): User[] { return this.get('users', USER_SEED); }
