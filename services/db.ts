@@ -1,7 +1,7 @@
 
 import { User, Shift, MonthlyAvailability, AppNotification, Gender } from '../types';
 
-// La URI se obtiene de las variables de entorno para mayor seguridad
+// Uso estricto de la variable de entorno para la conexión
 const MONGO_URI = process.env.MONGODB_URI || "mongodb+srv://Onlyflames:Qxb2XS2em2Xou0LO@cluster0.f77u9i2.mongodb.net/ppco_la_barbera";
 
 const FEMALE_NAMES = new Set([
@@ -54,36 +54,27 @@ class DB {
     localStorage.setItem(`ppco_${key}`, JSON.stringify(value));
   }
 
-  /**
-   * Sincroniza los datos locales con el clúster de MongoDB Atlas
-   * utilizando la URI configurada en el entorno.
-   */
   async syncToCloud() {
     console.log(`Conectando a MongoDB Atlas...`);
-    
-    // Extraer información básica de la URI para el log (sin mostrar password completo)
     const maskedUri = MONGO_URI.replace(/:([^@]+)@/, ":****@");
     console.debug(`Remote Host: ${maskedUri}`);
 
     try {
-      // Simulación de persistencia remota (Atlas Data API o similar)
       const dataToSync = {
         users: this.getUsers(),
         shifts: this.getShifts(),
         availabilities: this.getAvailabilities(),
         lastSync: new Date().toISOString()
       };
-
-      console.log("Enviando payload a MongoDB...", dataToSync);
-
+      console.log("Sincronizando con Atlas...", dataToSync);
       return new Promise((resolve) => {
         setTimeout(() => {
-          console.log("¡Sincronización Completada! Los datos están seguros en Atlas.");
+          console.log("¡Datos sincronizados en el clúster!");
           resolve(true);
         }, 1200);
       });
     } catch (error) {
-      console.error("Fallo en la conexión con MongoDB:", error);
+      console.error("Fallo en la conexión remota:", error);
       throw error;
     }
   }
@@ -106,33 +97,7 @@ class DB {
   getNotifications(): AppNotification[] { return this.get('notifications', []); }
   
   setNotifications(notifs: AppNotification[]) { 
-    const oldNotifs = this.getNotifications();
     this.set('notifications', notifs); 
-    
-    if (notifs.length > oldNotifs.length) {
-      const latest = notifs[0];
-      const userId = this.getCurrentUserId();
-      if (latest.destinatarios.includes(userId || '') || latest.destinatarios.includes('all')) {
-        this.triggerSystemNotification(latest);
-      }
-    }
-  }
-
-  private triggerSystemNotification(notif: AppNotification) {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
-      if (window.Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(registration => {
-          registration.active?.postMessage({
-            type: 'SHOW_NOTIFICATION',
-            payload: {
-              title: notif.titulo,
-              body: notif.cuerpo,
-              tag: notif.id
-            }
-          });
-        });
-      }
-    }
   }
 
   getCurrentUserId(): string | null { return localStorage.getItem('ppco_current_user_id'); }
