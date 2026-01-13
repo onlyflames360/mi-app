@@ -15,13 +15,13 @@ export interface User {
   avatarSeed?: string;
   avatarUrl?: string;
   skills?: string[];
-  // Propiedades de compatibilidad
-  name?: string; 
-  shiftsFulfilled?: number;
-  shiftsCovered?: number;
-  isAvailable?: boolean;
-  availableForNextMonth?: boolean;
-  notificationsEnabled?: boolean;
+  // Propiedades de compatibilidad para evitar errores en archivos legacy
+  name?: any; 
+  shiftsFulfilled?: any;
+  shiftsCovered?: any;
+  isAvailable?: any;
+  availableForNextMonth?: any;
+  notificationsEnabled?: any;
   availabilityNextMonth?: any;
 }
 
@@ -35,16 +35,16 @@ export interface Shift {
   estado: ShiftStatus;
   asignadoA: string; // User ID
   motivoRechazo?: string;
-  // Propiedades de compatibilidad
-  date?: string;
-  assignedUsers?: any; // Acepta string[] o objetos con userId
-  isCancelledByAdmin?: boolean;
-  isReassignmentOpen?: boolean;
-  location?: string;
-  startTime?: string;
-  endTime?: string;
-  dayName?: string;
-  cancellationReason?: string;
+  // Propiedades de compatibilidad para evitar errores en archivos legacy
+  date?: any;
+  assignedUsers?: any; 
+  isCancelledByAdmin?: any;
+  isReassignmentOpen?: any;
+  location?: any;
+  startTime?: any;
+  endTime?: any;
+  dayName?: any;
+  cancellationReason?: any;
 }
 
 export interface DayAvailability {
