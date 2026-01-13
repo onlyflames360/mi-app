@@ -5,8 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // Provee process.env al navegador para que funcionen las llamadas a la API de Gemini y DB
-    'process.env': process.env
+    // Definición segura para evitar que Rollup falle al intentar serializar el objeto process completo
+    'process.env': '({})',
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    'process.env.MONGODB_URI': JSON.stringify(process.env.MONGODB_URI)
   },
   build: {
     outDir: 'dist',
