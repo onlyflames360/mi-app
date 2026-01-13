@@ -15,8 +15,14 @@ export interface User {
   avatarSeed?: string;
   avatarUrl?: string;
   skills?: string[];
-  // Propiedades de compatibilidad para evitar errores en AuthView.tsx
+  // Propiedades de compatibilidad
   name?: string; 
+  shiftsFulfilled?: number;
+  shiftsCovered?: number;
+  isAvailable?: boolean;
+  availableForNextMonth?: boolean;
+  notificationsEnabled?: boolean;
+  availabilityNextMonth?: any;
 }
 
 export interface Shift {
@@ -29,11 +35,16 @@ export interface Shift {
   estado: ShiftStatus;
   asignadoA: string; // User ID
   motivoRechazo?: string;
-  // Propiedades de compatibilidad para evitar errores en CalendarView.tsx
+  // Propiedades de compatibilidad
   date?: string;
-  assignedUsers?: string[];
+  assignedUsers?: any; // Acepta string[] o objetos con userId
   isCancelledByAdmin?: boolean;
   isReassignmentOpen?: boolean;
+  location?: string;
+  startTime?: string;
+  endTime?: string;
+  dayName?: string;
+  cancellationReason?: string;
 }
 
 export interface DayAvailability {
