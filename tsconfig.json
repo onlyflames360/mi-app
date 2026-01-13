@@ -16,23 +16,23 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*"]
+    }
   },
-  "include": ["index.tsx", "App.tsx", "types.ts", "services/**/*", "components/**/*"],
+  "include": [
+    "index.tsx", 
+    "App.tsx", 
+    "types.ts", 
+    "services/**/*.ts", 
+    "components/**/*.tsx"
+  ],
   "exclude": [
     "node_modules",
     "dist",
-    "components/AuthView.tsx",
-    "components/CalendarView.tsx",
-    "components/DashboardStats.tsx",
-    "components/Header.tsx",
-    "components/NotificationSimulator.tsx",
-    "components/NotificationsView.tsx",
-    "components/PersonalShiftsView.tsx",
-    "components/PlanningView.tsx",
-    "components/UserDirectory.tsx",
-    "constants.ts",
-    "lib/config.ts",
-    "lib/firebase.ts"
+    "**/*.spec.ts",
+    "**/*.test.ts"
   ]
 }

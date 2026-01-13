@@ -2,8 +2,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { User, Shift, MonthlyAvailability, GroundingLink } from "../types";
 
-// Inicialización siguiendo estrictamente la normativa de process.env.API_KEY
-const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Inicialización estandarizada
+const getAi = () => {
+  if (!process.env.API_KEY) {
+    console.warn("API_KEY no detectada en process.env");
+  }
+  return new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+};
 
 export const generateSmartPlanning = async (
   users: User[],
@@ -73,7 +78,7 @@ export const generateSmartPlanning = async (
 
 export const getStatsAnalysis = async (shifts: Shift[], users: User[]) => {
   const ai = getAi();
-  const prompt = `Analiza estos turnos brevemente: ${JSON.stringify(shifts)}`;
+  const prompt = `Analiza estos turnos brevemente y da conclusiones clave: ${JSON.stringify(shifts)}`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: prompt
