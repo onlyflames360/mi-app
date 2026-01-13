@@ -164,13 +164,40 @@ const UserTasks: React.FC<UserTasksProps> = ({ user }) => {
                     </button>
                   </div>
                 )}
-                {/* ... resto de botones ... */}
               </div>
             );
           })}
         </div>
       )}
-      {/* ... modal de baja ... */}
+
+      {rejectingTaskId && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in">
+          <div className="max-w-md w-full bg-white rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in duration-300">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+                <i className="fa-solid fa-triangle-exclamation"></i>
+              </div>
+              <h2 className="text-xl font-black text-slate-800">Confirmar Baja</h2>
+              <p className="text-sm text-slate-500 font-medium">¿Estás seguro de que no puedes asistir? Al confirmar, el sistema buscará un sustituto urgente.</p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setRejectingTaskId(null)}
+                className="flex-1 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition-all"
+              >
+                Volver
+              </button>
+              <button 
+                onClick={() => updateStatus(rejectingTaskId, 'rechazado')}
+                className="flex-1 py-4 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 shadow-xl shadow-red-100 transition-all"
+              >
+                Confirmar Baja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -107,9 +107,13 @@ const CoordCalendar: React.FC = () => {
     });
   };
 
+  const filteredUsers = users.filter(u => 
+    u.rol === 'usuario' && 
+    `${u.nombre} ${u.apellidos}`.toLowerCase().includes(searchUser.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
-      {/* ... controles de calendario ... */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800">Calendario de Turnos</h2>
@@ -185,7 +189,67 @@ const CoordCalendar: React.FC = () => {
           );
         })}
       </div>
-      {/* ... modal de añadir persona ... */}
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in">
+          <div className="max-w-md w-full bg-white rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-black text-slate-800">Asignar Voluntario</h2>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                  {showAddModal.lugar} | {showAddModal.inicio}
+                </p>
+              </div>
+              <button onClick={() => setShowAddModal(null)} className="text-slate-400 hover:text-slate-600">
+                <i className="fa-solid fa-xmark text-xl"></i>
+              </button>
+            </div>
+
+            <div className="relative mb-6">
+              <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
+              <input 
+                type="text"
+                placeholder="Buscar por nombre..."
+                value={searchUser}
+                onChange={(e) => setSearchUser(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-50 outline-none transition-all"
+              />
+            </div>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map(u => (
+                  <button 
+                    key={u.id}
+                    onClick={() => handleAddPerson(u.id)}
+                    className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-left group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                      <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="av" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{u.nombre} {u.apellidos}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{u.genero}</p>
+                    </div>
+                    <i className="fa-solid fa-plus-circle text-slate-200 group-hover:text-blue-500 transition-colors"></i>
+                  </button>
+                ))
+              ) : (
+                <p className="text-center py-10 text-slate-400 font-bold text-xs uppercase tracking-widest">No hay resultados</p>
+              )}
+            </div>
+
+            <div className="mt-8">
+              <button 
+                onClick={() => setShowAddModal(null)}
+                className="w-full py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition-all"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

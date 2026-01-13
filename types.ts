@@ -13,8 +13,10 @@ export interface User {
   activo: boolean;
   genero: Gender;
   avatarSeed?: string;
-  avatarUrl?: string; // Para fotos subidas por el usuario
+  avatarUrl?: string;
   skills?: string[];
+  // Propiedades de compatibilidad para evitar errores en AuthView.tsx
+  name?: string; 
 }
 
 export interface Shift {
@@ -27,6 +29,11 @@ export interface Shift {
   estado: ShiftStatus;
   asignadoA: string; // User ID
   motivoRechazo?: string;
+  // Propiedades de compatibilidad para evitar errores en CalendarView.tsx
+  date?: string;
+  assignedUsers?: string[];
+  isCancelledByAdmin?: boolean;
+  isReassignmentOpen?: boolean;
 }
 
 export interface DayAvailability {

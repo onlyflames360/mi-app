@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { User, Shift, MonthlyAvailability, GroundingLink } from "../types";
 
 // Inicialización siguiendo estrictamente la normativa de process.env.API_KEY
-const getAi = () => new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
+const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export const generateSmartPlanning = async (
   users: User[],
