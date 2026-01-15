@@ -1,5 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, Location, Shift, Assignment, Role, AssignmentStatus, Alert, Availability, AvailabilitySlot, Message, Gender } from '../types';
+import { User, Location, Shift, Assignment, Role, AssignmentStatus, Alert, Availability, AvailabilitySlot, Message } from '../types';
+// Fix: Import generateShiftsPDF to use it in handleShare for exporting the shift plan
+import { generateShiftsPDF } from '../services/pdfService';
 import { 
   Plus, 
   Upload, 
@@ -39,8 +42,6 @@ import {
   CheckCircle2,
   CalendarDays
 } from 'lucide-react';
-import { generateShiftsPDF } from '../services/pdfService';
-import CoordCalendar from './CoordCalendar'; // Importar CoordCalendar
 
 interface CoordProps {
   activeTab?: string;
@@ -90,7 +91,7 @@ const CoordinatorView: React.FC<CoordProps> = ({
   const [showUserModal, setShowUserModal] = useState(false);
   const [userModalMode, setUserModalMode] = useState<'add' | 'edit'>('add');
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [userFormData, setUserFormData] = useState({ display_name: '', role: Role.USER, genero: Gender.MASCULINO, activo: true }); // Added genero, activo
+  const [userFormData, setUserFormData] = useState({ display_name: '', role: Role.USER });
 
   // Broadcast State
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -113,7 +114,7 @@ const CoordinatorView: React.FC<CoordProps> = ({
   // Volunteers who have submitted availability
   const usersWithAvailability = useMemo(() => {
     const userIds = new Set(availabilities.map(a => a.user_id));
-    return users.filter(u => u.role === Role.USER && userIds.has(u.id));
+    return users.filter(u => userIds.has(u.id));
   }, [users, availabilities]);
 
   // Statistics Calculations
@@ -170,14 +171,14 @@ const CoordinatorView: React.FC<CoordProps> = ({
   const openAddUserModal = () => {
     setUserModalMode('add');
     setEditingUser(null);
-    setUserFormData({ display_name: '', role: Role.USER, genero: Gender.MASCULINO, activo: true });
+    setUserFormData({ display_name: '', role: Role.USER });
     setShowUserModal(true);
   };
 
   const openEditUserModal = (u: User) => {
     setUserModalMode('edit');
     setEditingUser(u);
-    setUserFormData({ display_name: u.display_name, role: u.role, genero: u.genero || Gender.MASCULINO, activo: u.activo || true });
+    setUserFormData({ display_name: u.display_name, role: u.role });
     setShowUserModal(true);
   };
 
@@ -191,18 +192,14 @@ const CoordinatorView: React.FC<CoordProps> = ({
     if (userModalMode === 'add') {
       const newUser: User = {
         id: `u-${Date.now()}`,
-        email: `${trimmedName.toLowerCase().replace(/\s/g, '')}@ppoc.com`, // Email ficticio
         display_name: trimmedName,
         role: userFormData.role,
-        created_at: new Date().toISOString(),
-        genero: userFormData.genero,
-        activo: userFormData.activo,
-        avatarSeed: trimmedName.split(' ')[0]
+        created_at: new Date().toISOString()
       };
       setUsers(prev => [...prev, newUser]);
       addNotification("Nuevo Usuario", `${newUser.display_name} se ha añadido a la lista.`);
     } else if (editingUser) {
-      setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, display_name: trimmedName, role: userFormData.role, genero: userFormData.genero, activo: userFormData.activo } : u));
+      setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, display_name: trimmedName, role: userFormData.role } : u));
       addNotification("Cambios Guardados", `Se han actualizado los datos de ${trimmedName}.`);
     }
     setShowUserModal(false);
@@ -396,23 +393,6 @@ const CoordinatorView: React.FC<CoordProps> = ({
                   <option value={Role.COORD}>COORDINADOR (ADMIN)</option>
                 </select>
               </div>
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1 block">Género</label>
-                <select value={userFormData.genero} onChange={e => setUserFormData({...userFormData, genero: e.target.value as Gender})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black uppercase text-xs focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all">
-                  <option value={Gender.MASCULINO}>MASCULINO</option>
-                  <option value={Gender.FEMENINO}>FEMENINO</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <input 
-                  type="checkbox" 
-                  id="activo"
-                  checked={userFormData.activo}
-                  onChange={(e) => setUserFormData({...userFormData, activo: e.target.checked})}
-                  className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="activo" className="text-sm font-bold text-slate-700 cursor-pointer">Usuario activo en el sistema</label>
-              </div>
               <button onClick={handleSaveUser} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl mt-4 active:scale-95 uppercase text-xs tracking-widest shadow-xl transition-all hover:bg-blue-600">Guardar Información</button>
             </div>
           </div>
@@ -430,14 +410,42 @@ const CoordinatorView: React.FC<CoordProps> = ({
           <button onClick={() => { if(confirm("¿Borrar todas las asignaciones?")) setAssignments([]); }} className="p-4 text-red-500 bg-red-50 hover:bg-red-100 rounded-2xl transition-all active:scale-90" title="Borrar todo"><Trash2 size={20} /></button>
         </div>
       </div>
-      {/* Integración de CoordCalendar */}
-      <CoordCalendar 
-        locations={locations}
-        users={users}
-        shifts={shifts}
-        assignments={assignments}
-        setAssignments={setAssignments}
-      />
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b border-slate-100">
+            <tr>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Día / Hora</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lugar</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voluntarios</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Borrar</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {[...shifts].sort((a,b) => a.date.localeCompare(b.date)).map(shift => {
+              const loc = locations.find(l => l.id === shift.location_id);
+              const shiftAssignments = assignments.filter(a => a.shift_id === shift.id);
+              return (
+                <tr key={shift.id} className="group hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-5 whitespace-nowrap"><p className="font-black text-slate-800 text-sm uppercase">{shift.date}</p><p className="text-[10px] font-black text-blue-500">{shift.start_time}</p></td>
+                  <td className="px-6 py-5"><span className="px-3 py-1.5 rounded-xl text-[10px] font-black text-white shadow-sm uppercase tracking-tighter" style={{backgroundColor: loc?.color_hex}}>{loc?.name}</span></td>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-wrap gap-2">
+                      {shiftAssignments.map(a => (
+                        <div key={a.id} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-xl text-[9px] font-black uppercase text-slate-700 shadow-sm">
+                          {users.find(usr => usr.id === a.user_id)?.display_name.split(' ')[0]}
+                          <button onClick={() => setAssignments(p => p.filter(it => it.id !== a.id))} className="text-red-400 hover:text-red-600 transition-colors"><X size={10}/></button>
+                        </div>
+                      ))}
+                      <button onClick={() => setAssigningShiftId(shift.id)} className="flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase hover:bg-blue-100 transition-all border border-blue-100"><Plus size={12} /> Añadir</button>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 text-right"><button onClick={() => handleDeleteShift(shift.id)} className="text-slate-300 hover:text-red-600 transition-all active:scale-90"><Trash2 size={20}/></button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 

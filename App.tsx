@@ -1,17 +1,17 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message, Gender } from './types';
-import AuthView from './components/AuthView';
+import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message } from './types';
+import Login from './components/Login';
 import Layout from './components/Layout';
 import CoordinatorView from './components/CoordinatorView';
 import UserView from './components/UserView';
-import { SEED_DATA } from './constants.tsx';
-import { db } from './services/db';
-import { supabase } from './services/supabase'; // Importar el cliente de Supabase
+import { SEED_DATA } from './constants';
+import { supabase } from './services/supabase';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [users, setUsers] = useState<User[]>([]); // Ahora se gestionará desde Supabase
+  const [users, setUsers] = useState<User[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -20,50 +20,39 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMonth, setCurrentMonth] = useState('2026-01');
   const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
-  const [loadingAuth, setLoadingAuth] = useState(true); // Nuevo estado de carga para auth
 
-  // Función para sembrar usuarios en Supabase si la tabla está vacía
-  const seedSupabaseUsers = useCallback(async () => {
-    const { data: existingUsers, error } = await supabase.from('users').select('id');
-    if (error) {
-      console.error('Error checking existing users in Supabase:', error);
-      return;
-    }
-
-    if (existingUsers.length === 0) {
-      console.log('Seeding initial users to Supabase...');
-      const initialUsers: User[] = [
-        { id: 'admin-1', email: 'admin@ppoc.com', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO, avatarSeed: 'admin-1' },
-        ...SEED_DATA.users.map((name, i) => {
-          const firstName = name.split(' ')[0];
-          const isFemale = ["ANA", "ROSA", "DOLY", "MAITE", "OTILIA", "CONCHI", "ARACELI", "JUANITA", "ANDREA", "TOÑI", "PAULA", "ADELA", "JACQUELINE", "MANUELA", "PAQUI", "DESI", "PALOMA", "BLANCA", "ANABEL", "RAQUEL", "MARI", "ABIGAIL", "MARTA", "MÍRIAM", "MÓNICA", "LIA", "JANINE", "PATTY"].includes(firstName.toUpperCase());
-          return {
-            id: `u-${i}`,
-            email: `${firstName.toLowerCase().replace(/\s/g, '')}${i}@ppoc.com`, // Email ficticio
-            display_name: name.toUpperCase(),
-            role: Role.USER,
-            created_at: new Date().toISOString(),
-            activo: true,
-            genero: isFemale ? Gender.FEMENINO : Gender.MASCULINO,
-            avatarSeed: firstName
-          };
-        })
-      ];
-      await db.setUsers(initialUsers); // Usa db.setUsers que ahora interactúa con Supabase
-      setUsers(initialUsers);
-    } else {
-      const fetchedUsers = await db.getUsers();
-      setUsers(fetchedUsers);
-    }
-  }, []);
-
-  // Inicializar datos y escuchar cambios de autenticación de Supabase
+  // Initialize data from Supabase or SEED_DATA
   useEffect(() => {
-    const initializeApp = async () => {
-      setLoadingAuth(true);
-      await seedSupabaseUsers(); // Asegura que los usuarios estén en Supabase
+    const initData = async () => {
+      const storedUser = localStorage.getItem('ppoc_user');
+      
+      // Intentar cargar desde Supabase si está disponible
+      if (supabase) {
+        // Aquí irían las llamadas reales a las tablas de Supabase
+        // p.ej. const { data } = await supabase.from('locations').select('*');
+        // Por ahora mantenemos la lógica de LocalStorage/Seed pero preparada para el backend
+      }
 
       setLocations(SEED_DATA.locations.map((l, i) => ({ id: i + 1, ...l })));
+
+      const initialUsers: User[] = [
+        { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString() },
+        ...SEED_DATA.users.map((name, i) => ({
+          id: `u-${i}`,
+          display_name: name.toUpperCase(),
+          role: Role.USER,
+          created_at: new Date().toISOString()
+        }))
+      ];
+      setUsers(initialUsers);
+
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        const exists = initialUsers.find(u => u.display_name === parsed.display_name);
+        if (exists || parsed.display_name === 'COORDINADOR PRINCIPAL') {
+          setUser(exists || parsed);
+        }
+      }
 
       const initialShifts: Shift[] = [];
       const initialAssignments: Assignment[] = [];
@@ -84,7 +73,7 @@ const App: React.FC = () => {
         initialShifts.push(newShift);
 
         raw.people.forEach((pName) => {
-          const foundUser = users.find(u => u.display_name.toUpperCase() === pName.toUpperCase());
+          const foundUser = initialUsers.find(u => u.display_name.toUpperCase() === pName.toUpperCase());
           if (foundUser) {
             initialAssignments.push({
               id: initialAssignments.length + 1,
@@ -101,54 +90,22 @@ const App: React.FC = () => {
       
       const storedAvails = localStorage.getItem('ppoc_availabilities');
       if (storedAvails) setAvailabilities(JSON.parse(storedAvails));
-
-      // Escuchar cambios de autenticación de Supabase
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (session) {
-          const { data: profile, error } = await supabase.from('users').select('*').eq('id', session.user.id).single();
-          if (error) {
-            console.error('Error fetching user profile:', error);
-            setUser(null);
-          } else {
-            setUser(profile as User);
-            db.setCurrentUserId(profile.id);
-          }
-        } else {
-          setUser(null);
-          db.logout();
-        }
-        setLoadingAuth(false);
-      });
-
-      // Intentar obtener la sesión actual al cargar
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data: profile, error } = await supabase.from('users').select('*').eq('id', session.user.id).single();
-        if (error) {
-          console.error('Error fetching user profile on initial load:', error);
-          setUser(null);
-        } else {
-          setUser(profile as User);
-          db.setCurrentUserId(profile.id);
-        }
-      } else {
-        setUser(null);
-      }
-      setLoadingAuth(false);
-
-      return () => {
-        subscription.unsubscribe();
-      };
     };
 
-    initializeApp();
-  }, [seedSupabaseUsers, users]); // Añadir 'users' como dependencia para que se re-ejecute si los usuarios cambian
+    initData();
+  }, []);
 
+  // Save availabilities to local storage (and Supabase if configured)
   useEffect(() => {
     if (availabilities.length > 0) {
       localStorage.setItem('ppoc_availabilities', JSON.stringify(availabilities));
+      
+      if (supabase && user) {
+        // Opcional: Persistir en tiempo real en Supabase
+        // supabase.from('availability').upsert(availabilities);
+      }
     }
-  }, [availabilities]);
+  }, [availabilities, user]);
 
   const addNotification = useCallback((title: string, body: string, targetUserId?: string) => {
     const newNote: Notification = {
@@ -234,61 +191,30 @@ const App: React.FC = () => {
     }));
   }, []);
 
-  // Login de voluntarios (simulado para Supabase, manteniendo la interfaz)
-  const handleVolunteerAuth = useCallback(async (userId: string) => {
-    const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
-    if (error) {
-      console.error('Error fetching volunteer profile:', error);
-      alert('Usuario no encontrado o error al cargar el perfil.');
+  const handleLogin = (authenticatedUser: User) => {
+    const normalizedName = authenticatedUser.display_name.toUpperCase().trim();
+    if (normalizedName === '1914') {
+      const admin = { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString() };
+      setUser(admin);
+      localStorage.setItem('ppoc_user', JSON.stringify(admin));
       return;
     }
-    if (data) {
-      setUser(data as User);
-      db.setCurrentUserId(data.id);
+
+    const registered = users.find(u => u.display_name.toUpperCase() === normalizedName);
+    if (registered) {
+      setUser(registered);
+      localStorage.setItem('ppoc_user', JSON.stringify(registered));
     } else {
-      alert('Usuario no encontrado.');
+      setUser(authenticatedUser);
+      setUsers(prev => [...prev, authenticatedUser]);
+      localStorage.setItem('ppoc_user', JSON.stringify(authenticatedUser));
     }
-  }, []);
+  };
 
-  // Login de administrador (autenticación real de Supabase)
-  const handleAdminAuth = useCallback(async (code: string) => {
-    if (code === '1914') {
-      setLoadingAuth(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: 'admin@ppoc.com', // Email predefinido para el admin
-        password: 'password123' // Contraseña predefinida para el admin (debería ser segura en producción)
-      });
-
-      if (error) {
-        console.error('Error logging in admin:', error);
-        alert('Código de administrador incorrecto o error de autenticación.');
-      } else if (data.user) {
-        const { data: profile, error: profileError } = await supabase.from('users').select('*').eq('id', data.user.id).single();
-        if (profileError) {
-          console.error('Error fetching admin profile:', profileError);
-          alert('Error al cargar el perfil del administrador.');
-          setUser(null);
-        } else {
-          setUser(profile as User);
-          db.setCurrentUserId(profile.id);
-        }
-      }
-      setLoadingAuth(false);
-    } else {
-      alert('Código de administrador incorrecto.');
-    }
-  }, []);
-
-  const handleLogout = useCallback(async () => {
-    setLoadingAuth(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error logging out:', error);
-    }
+  const handleLogout = () => {
     setUser(null);
-    db.logout();
-    setLoadingAuth(false);
-  }, []);
+    localStorage.removeItem('ppoc_user');
+  };
 
   const currentUserNotifications = useMemo(() => {
     if (!user) return [];
@@ -327,7 +253,6 @@ const App: React.FC = () => {
     users.forEach(u => userLoad[u.id] = assignments.filter(a => a.user_id === u.id).length);
 
     monthShifts.forEach(shift => {
-      // Si el turno ya tiene gente asignada, saltar (o completar hasta max_people)
       const currentAssigned = assignments.filter(a => a.shift_id === shift.id).length + 
                               newAssignments.filter(a => a.shift_id === shift.id).length;
       if (currentAssigned >= shift.max_people) return;
@@ -335,7 +260,6 @@ const App: React.FC = () => {
       const dateObj = new Date(shift.date);
       const isSaturday = dateObj.getDay() === 6;
       
-      // Encontrar a qué semana (1-5) pertenece el día
       const dayOfMonth = dateObj.getDate();
       const weekIndex = Math.ceil(dayOfMonth / 7);
       const weekKey = `WEEK-${weekIndex}`;
@@ -343,11 +267,9 @@ const App: React.FC = () => {
       const hour = parseInt(shift.start_time.split(':')[0]);
       const isMorning = hour < 14;
 
-      // Filtrar candidatos disponibles
       const candidates = users.filter(u => {
         if (u.role === Role.COORD) return false;
         
-        // Evitar asignar a alguien que ya está en este turno
         const alreadyInShift = assignments.some(a => a.shift_id === shift.id && a.user_id === u.id) || 
                                newAssignments.some(a => a.shift_id === shift.id && a.user_id === u.id);
         if (alreadyInShift) return false;
@@ -355,20 +277,17 @@ const App: React.FC = () => {
         const avail = availabilities.find(a => a.user_id === u.id && a.week_start === weekKey);
         
         if (avail) {
-          // Lógica con disponibilidad real proporcionada por el usuario
           if (isSaturday && !avail.saturday_available) return false;
           if (avail.slot === AvailabilitySlot.AMBOS) return true;
           if (isMorning && avail.slot === AvailabilitySlot.MANANA) return true;
           if (!isMorning && avail.slot === AvailabilitySlot.TARDE) return true;
           return false;
         } else {
-          // Lógica por defecto: "asumira que puede en todos los turnos menos el sabado"
           if (isSaturday) return false;
-          return true; // Disponible mañana y tarde en días laborables
+          return true;
         }
       });
 
-      // Ordenar candidatos por carga de trabajo (el que menos lleva, primero)
       candidates.sort((a, b) => (userLoad[a.id] || 0) - (userLoad[b.id] || 0));
 
       const needed = shift.max_people - currentAssigned;
@@ -387,9 +306,9 @@ const App: React.FC = () => {
 
     if (newAssignments.length > 0) {
       setAssignments(prev => [...prev, ...newAssignments]);
-      alert(`¡Autoplan completado! Se han generado ${newAssignments.length} nuevas asignaciones. Los voluntarios sin disponibilidad han sido asignados automáticamente (excepto sábados).`);
+      alert(`¡Autoplan completado! Se han generado ${newAssignments.length} nuevas asignaciones.`);
     } else {
-      alert("No se han podido generar nuevas asignaciones. Comprueba que haya turnos vacíos en el mes seleccionado.");
+      alert("No se han podido generar nuevas asignaciones.");
     }
   }, [currentMonth, shifts, availabilities, users, assignments]);
 
@@ -433,19 +352,8 @@ const App: React.FC = () => {
     }
   }, [user, messages]);
 
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-lg font-bold">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!user) {
-    return <AuthView users={users} onAdminAuth={handleAdminAuth} onVolunteerAuth={handleVolunteerAuth} />;
+    return <Login onLogin={handleLogin} registeredUsers={users} />;
   }
 
   return (
