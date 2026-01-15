@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../types';
 
@@ -16,7 +15,7 @@ const AuthView: React.FC<AuthViewProps> = ({ users, onAdminAuth, onVolunteerAuth
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase())
+    u.display_name.toLowerCase().includes(searchTerm.toLowerCase())
   ).slice(0, 5);
 
   // Manejar la detección de qué tarjeta está visible en móvil
@@ -82,9 +81,9 @@ const AuthView: React.FC<AuthViewProps> = ({ users, onAdminAuth, onVolunteerAuth
                           className="w-full px-5 py-4 text-left hover:bg-indigo-50 flex items-center gap-3 transition-colors"
                         >
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-black text-indigo-600 uppercase">
-                            {u.name.charAt(0)}
+                            {u.display_name.charAt(0)}
                           </div>
-                          <span className="font-bold text-slate-700 text-sm uppercase">{u.name}</span>
+                          <span className="font-bold text-slate-700 text-sm uppercase">{u.display_name}</span>
                         </button>
                       )) : (
                         <div className="p-6 text-center">
