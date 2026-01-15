@@ -1,9 +1,9 @@
 import React from 'react';
-import { ViewType, Role, User, Notification } from '../types'; // Changed AppNotification to Notification
+import { Role, User, Notification } from '../types';
 
 interface SidebarProps {
-  currentView: ViewType;
-  onViewChange: (v: ViewType) => void;
+  currentView: string; // Changed to string to match activeTab in Layout
+  onViewChange: (v: string) => void;
   user: User;
   onRoleSwitch: (r: Role) => void;
   unreadCount: number;
@@ -11,16 +11,16 @@ interface SidebarProps {
 }
 
 interface SidebarItem {
-  id: string; // Changed to string to match activeTab in Layout
+  id: string;
   icon: string;
   label: string;
   badge?: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRoleSwitch, unreadCount, onLogout }) => {
-  const isCoord = user.role === Role.COORD; // Changed user.rol to user.role
+  const isCoord = user.role === Role.COORD;
 
-  // Updated to match NAV_ITEMS_COORD and NAV_ITEMS_USER in constants.tsx
+  // Updated to match NAV_ITEMS_COORD and NAV_ITEMS_USER in constants.ts
   const userItems: SidebarItem[] = [
     { id: 'home', icon: 'fa-calendar-check', label: 'Inicio' },
     { id: 'availability', icon: 'fa-clock', label: 'Disponibilidad' },
@@ -39,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
 
   const items = isCoord ? coordItems : userItems;
 
-  const avatarUrl = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.display_name}&backgroundColor=b6e3f4,c0aede,d1d4f9`; // Changed user.nombre to user.display_name
+  const avatarUrl = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.display_name}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 
   return (
     <aside className="w-20 md:w-64 bg-white border-r border-slate-200 h-screen flex flex-col sticky top-0 transition-all z-40">
@@ -55,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
 
       <nav className="flex-1 p-4 space-y-2">
         {items.map(item => {
-          const isNotifItem = item.id === 'notifications' || item.id === 'alerts'; // Updated item.id
+          const isNotifItem = item.id === 'notifications' || item.id === 'alerts';
           const hasUnread = isNotifItem && unreadCount > 0;
           const isActive = currentView === item.id;
 
@@ -72,7 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
           return (
             <button
               key={item.id}
-              onClick={() => onViewChange(item.id as ViewType)} // Cast to ViewType
+              onClick={() => onViewChange(item.id)}
               className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group relative ${containerClasses}`}
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${iconWrapperClasses}`}>
@@ -111,24 +111,24 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
           <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Cambiar Rol (Demo)</p>
           <div className="flex gap-2">
             <button 
-              onClick={() => onRoleSwitch(Role.USER)} // Changed 'usuario' to Role.USER
+              onClick={() => onRoleSwitch(Role.USER)}
               className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.role === Role.USER ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
             >User</button>
             <button 
-              onClick={() => onRoleSwitch(Role.COORD)} // Changed 'coordinador' to Role.COORD
+              onClick={() => onRoleSwitch(Role.COORD)}
               className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.role === Role.COORD ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
             >Coord</button>
           </div>
         </div>
         
         <div className="flex items-center justify-between p-2 md:p-0">
-          <div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => onViewChange('home')}> {/* Changed to 'home' as UserProfile is removed */}
+          <div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => onViewChange('home')}>
             <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-sm">
               <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
             </div>
             <div className="hidden md:block overflow-hidden">
-              <p className="text-xs font-bold text-slate-800 truncate">{user.display_name}</p> {/* Changed user.nombre to user.display_name */}
-              <p className="text-[10px] font-medium text-slate-400 uppercase">{user.role}</p> {/* Changed user.rol to user.role */}
+              <p className="text-xs font-bold text-slate-800 truncate">{user.display_name}</p>
+              <p className="text-[10px] font-medium text-slate-400 uppercase">{user.role}</p>
             </div>
           </div>
           
