@@ -1,419 +1,405 @@
 
-import React, { useState, useEffect } from 'react';
-import { db } from './services/db';
-import { ViewType, Role, User, AppNotification } from './types';
-import Sidebar from './components/Sidebar';
-import UserTasks from './components/UserTasks';
-import UserAvailability from './components/UserAvailability';
-import UserNotifications from './components/UserNotifications';
-import UserMessaging from './components/UserMessaging';
-import UserProfile from './components/UserProfile';
-import CoordUsers from './components/CoordUsers';
-import CoordPlanning from './components/CoordPlanning';
-import CoordStats from './components/CoordStats';
-import CoordNotifications from './components/CoordNotifications';
-import CoordCalendar from './components/CoordCalendar';
-import CoordMessaging from './components/CoordMessaging';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message } from './types';
+import Login from './components/Login';
+import Layout from './components/Layout';
+import CoordinatorView from './components/CoordinatorView';
+import UserView from './components/UserView';
+import { SEED_DATA } from './constants';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<ViewType>(ViewType.USER_TASKS);
-  const [notifs, setNotifs] = useState<AppNotification[]>([]);
-  const [hasEntered, setHasEntered] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  
-  // Install PWA State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallBtn, setShowInstallBtn] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [availabilities, setAvailabilities] = useState<Availability[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentMonth, setCurrentMonth] = useState('2026-01');
+  const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
 
-  // Login States
-  const [loginSearch, setLoginSearch] = useState('');
-  const [selectedUserForPass, setSelectedUserForPass] = useState<User | null>(null);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passError, setPassError] = useState(false);
+  // Initialize data from SEED_DATA
+  useEffect(() => {
+    const storedUser = localStorage.getItem('ppoc_user');
+    
+    setLocations(SEED_DATA.locations.map((l, i) => ({ id: i + 1, ...l })));
 
-  const loadNotifications = () => {
-    if (!currentUser) return;
-    const allNotifs = db.getNotifications();
-    const mine = allNotifs.filter(n => n.destinatarios.includes(currentUser.id) || n.destinatarios.includes('all'));
-    setNotifs(mine);
-  };
+    const initialUsers: User[] = [
+      { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString() },
+      ...SEED_DATA.users.map((name, i) => ({
+        id: `u-${i}`,
+        display_name: name.toUpperCase(),
+        role: Role.USER,
+        created_at: new Date().toISOString()
+      }))
+    ];
+    setUsers(initialUsers);
 
-  const loadUser = () => {
-    const userId = db.getCurrentUserId();
-    const users = db.getUsers();
-    if (userId) {
-      const found = users.find(u => u.id === userId);
-      if (found) {
-        setCurrentUser(found);
-        setHasEntered(true);
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      const exists = initialUsers.find(u => u.display_name === parsed.display_name);
+      if (exists || parsed.display_name === 'COORDINADOR PRINCIPAL') {
+        setUser(exists || parsed);
       }
     }
-  };
 
+    const initialShifts: Shift[] = [];
+    const initialAssignments: Assignment[] = [];
+
+    SEED_DATA.raw_shifts.forEach((raw, shiftIdx) => {
+      const locId = SEED_DATA.locations.findIndex(l => l.name === raw.loc) + 1;
+      const [start, end] = raw.time.split('-');
+      
+      const newShift: Shift = {
+        id: shiftIdx + 1,
+        date: raw.date,
+        start_time: start,
+        end_time: end,
+        location_id: locId,
+        max_people: raw.people.length,
+        notes: ''
+      };
+      initialShifts.push(newShift);
+
+      raw.people.forEach((pName) => {
+        const foundUser = initialUsers.find(u => u.display_name.toUpperCase() === pName.toUpperCase());
+        if (foundUser) {
+          initialAssignments.push({
+            id: initialAssignments.length + 1,
+            shift_id: newShift.id,
+            user_id: foundUser.id,
+            status: AssignmentStatus.CONFIRMED
+          });
+        }
+      });
+    });
+
+    setShifts(initialShifts);
+    setAssignments(initialAssignments);
+    
+    // Load local availabilities if any
+    const storedAvails = localStorage.getItem('ppoc_availabilities');
+    if (storedAvails) setAvailabilities(JSON.parse(storedAvails));
+  }, []);
+
+  // Save availabilities to local storage when changed
   useEffect(() => {
-    loadUser();
+    if (availabilities.length > 0) {
+      localStorage.setItem('ppoc_availabilities', JSON.stringify(availabilities));
+    }
+  }, [availabilities]);
 
-    // Capturar evento de instalación PWA
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstallBtn(true);
-    });
-
-    window.addEventListener('appinstalled', () => {
-      setShowInstallBtn(false);
-      setDeferredPrompt(null);
-    });
+  const addNotification = useCallback((title: string, body: string, targetUserId?: string) => {
+    const newNote: Notification = {
+      id: Date.now(),
+      title,
+      body,
+      read: false,
+      timestamp: new Date().toISOString(),
+      user_id: targetUserId
+    };
+    setNotifications(prev => [newNote, ...prev]);
   }, []);
 
   useEffect(() => {
-    if (currentUser) {
-      loadNotifications();
-      const interval = setInterval(loadNotifications, 3000);
-      return () => clearInterval(interval);
+    if (!user || user.role !== Role.USER) return;
+
+    const checkReminders = () => {
+      const now = new Date();
+      const userAssignments = assignments.filter(a => a.user_id === user.id);
+
+      userAssignments.forEach(a => {
+        const shift = shifts.find(s => s.id === a.shift_id);
+        if (!shift) return;
+
+        const shiftStartTime = new Date(`${shift.date}T${shift.start_time}:00`);
+        const diffMs = shiftStartTime.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        const key24h = `24h-${a.id}`;
+        if (diffHours > 0 && diffHours <= 24 && !sentReminders.has(key24h)) {
+          addNotification(
+            "⏰ Mañana tienes turno",
+            `No olvides tu turno en ${locations.find(l => l.id === shift.location_id)?.name} a las ${shift.start_time}.`,
+            user.id
+          );
+          setSentReminders(prev => new Set(prev).add(key24h));
+        }
+
+        const key2h = `2h-${a.id}`;
+        if (diffHours > 0 && diffHours <= 2 && a.status === AssignmentStatus.PENDING && !sentReminders.has(key2h)) {
+          addNotification(
+            "⚠️ URGENTE: Confirma tu turno",
+            `Empiezas en 2 horas. Por favor, confirma asistencia.`,
+            user.id
+          );
+          setSentReminders(prev => new Set(prev).add(key2h));
+        }
+      });
+    };
+
+    const timer = setInterval(checkReminders, 60000);
+    checkReminders();
+    return () => clearInterval(timer);
+  }, [user, assignments, shifts, locations, sentReminders, addNotification]);
+
+  const handleSendMessage = useCallback((fromUserId: string, fromUserName: string, body: string, isBroadcast: boolean = false, toUserId?: string) => {
+    const newMessage: Message = {
+      id: Date.now(),
+      from_user_id: fromUserId,
+      from_user_name: fromUserName,
+      to_user_id: toUserId,
+      body,
+      timestamp: new Date().toISOString(),
+      is_broadcast: isBroadcast,
+      read: false
+    };
+    setMessages(prev => [newMessage, ...prev]);
+    
+    if (isBroadcast) {
+      addNotification("Aviso del Coordinador", body);
+    } else if (toUserId && toUserId !== 'admin-1') {
+      addNotification(`Respuesta del Coordinador`, body, toUserId);
+    } else {
+      addNotification(`Mensaje privado de ${fromUserName}`, body, 'admin-1');
     }
-  }, [currentUser]);
+  }, [addNotification]);
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    await db.syncToCloud();
-    setIsSyncing(false);
-  };
+  const markMessagesAsRead = useCallback((userId: string) => {
+    setMessages(prev => prev.map(m => {
+      if (userId === 'admin-1' && !m.is_broadcast && m.to_user_id === 'admin-1') return { ...m, read: true };
+      if (userId !== 'admin-1' && (m.is_broadcast || m.to_user_id === userId)) return { ...m, read: true };
+      return m;
+    }));
+  }, []);
 
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setShowInstallBtn(false);
+  const handleLogin = (authenticatedUser: User) => {
+    const normalizedName = authenticatedUser.display_name.toUpperCase().trim();
+    if (normalizedName === '1914') {
+      const admin = { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString() };
+      setUser(admin);
+      localStorage.setItem('ppoc_user', JSON.stringify(admin));
+      return;
     }
-    setDeferredPrompt(null);
-  };
 
-  const handleRoleSwitch = (role: Role) => {
-    const users = db.getUsers();
-    const nextUser = users.find(u => u.rol === role);
-    if (nextUser) {
-      if (role === 'coordinador') {
-        setSelectedUserForPass(nextUser);
-        setPasswordInput('');
-        setPassError(false);
-      } else {
-        db.setCurrentUserId(nextUser.id);
-        setCurrentUser(nextUser);
-        setCurrentView(ViewType.USER_TASKS);
-      }
+    const registered = users.find(u => u.display_name.toUpperCase() === normalizedName);
+    if (registered) {
+      setUser(registered);
+      localStorage.setItem('ppoc_user', JSON.stringify(registered));
+    } else {
+      setUser(authenticatedUser);
+      setUsers(prev => [...prev, authenticatedUser]);
+      localStorage.setItem('ppoc_user', JSON.stringify(authenticatedUser));
     }
   };
 
   const handleLogout = () => {
-    db.logout();
-    setCurrentUser(null);
-    setSelectedUserForPass(null);
-    setHasEntered(false);
+    setUser(null);
+    localStorage.removeItem('ppoc_user');
   };
 
-  const attemptLogin = (u: User) => {
-    if (u.rol === 'coordinador') {
-      setSelectedUserForPass(u);
-      setPasswordInput('');
-      setPassError(false);
-    } else {
-      db.setCurrentUserId(u.id);
-      setCurrentUser(u);
-      setCurrentView(ViewType.USER_TASKS);
-    }
-  };
+  const currentUserNotifications = useMemo(() => {
+    if (!user) return [];
+    return notifications.filter(n => !n.user_id || n.user_id === user.id);
+  }, [notifications, user]);
 
-  const verifyPassword = () => {
-    if (passwordInput === '1914' && selectedUserForPass) {
-      db.setCurrentUserId(selectedUserForPass.id);
-      setCurrentUser(selectedUserForPass);
-      setCurrentView(selectedUserForPass.rol === 'coordinador' ? ViewType.COORD_USERS : ViewType.USER_TASKS);
-      setSelectedUserForPass(null);
-      setPasswordInput('');
-    } else {
-      setPassError(true);
-    }
-  };
+  const markNotificationsAsRead = useCallback(() => {
+    if (!user) return;
+    setNotifications(prev => prev.map(n => {
+        if (!n.user_id || n.user_id === user.id) return { ...n, read: true };
+        return n;
+    }));
+  }, [user]);
 
-  const renderView = () => {
-    if (!currentUser) return null;
-    switch (currentView) {
-      case ViewType.USER_TASKS: return <UserTasks user={currentUser} />;
-      case ViewType.USER_AVAILABILITY: return <UserAvailability user={currentUser} />;
-      case ViewType.USER_NOTIFICATIONS: return <UserNotifications user={currentUser} />;
-      case ViewType.USER_MESSAGING: return <UserMessaging user={currentUser} />;
-      case ViewType.USER_PROFILE: return <UserProfile user={currentUser} onUserUpdate={setCurrentUser} />;
-      case ViewType.COORD_USERS: return <CoordUsers />;
-      case ViewType.COORD_PLANNING: return <CoordPlanning />;
-      case ViewType.COORD_CALENDAR: return <CoordCalendar />;
-      case ViewType.COORD_STATS: return <CoordStats />;
-      case ViewType.COORD_NOTIFICATIONS: return <CoordNotifications />;
-      case ViewType.COORD_MESSAGING: return <CoordMessaging />;
-      default: return <UserTasks user={currentUser} />;
-    }
-  };
+  const deleteNotification = useCallback((id: number) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
 
-  if (!hasEntered && !currentUser) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 overflow-hidden relative">
-        <div className="absolute top-0 -left-20 w-80 h-80 bg-blue-600/20 rounded-full blur-[100px]"></div>
-        <div className="absolute bottom-0 -right-20 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px]"></div>
+  const submitAvailability = useCallback((userId: string, weeks: { weekIndex: number, slot: AvailabilitySlot, saturday_available: boolean }[]) => {
+    const newAvails: Availability[] = weeks.map(w => ({
+      id: Math.floor(Math.random() * 1000000),
+      user_id: userId,
+      week_start: `WEEK-${w.weekIndex}`, 
+      slot: w.slot,
+      saturday_available: w.saturday_available
+    }));
+    setAvailabilities(prev => [...prev.filter(a => a.user_id !== userId), ...newAvails]);
+  }, []);
+
+  const handleAutoPlanManual = useCallback(() => {
+    const targetMonthPrefix = currentMonth === '2026-01' ? '2026-01' : '2026-02';
+    const monthShifts = shifts.filter(s => s.date.startsWith(targetMonthPrefix));
+    
+    let newAssignments: Assignment[] = [];
+    let userLoad: Record<string, number> = {};
+    users.forEach(u => userLoad[u.id] = assignments.filter(a => a.user_id === u.id).length);
+
+    monthShifts.forEach(shift => {
+      // Si el turno ya tiene gente asignada, saltar (o completar hasta max_people)
+      const currentAssigned = assignments.filter(a => a.shift_id === shift.id).length + 
+                              newAssignments.filter(a => a.shift_id === shift.id).length;
+      if (currentAssigned >= shift.max_people) return;
+
+      const dateObj = new Date(shift.date);
+      const isSaturday = dateObj.getDay() === 6;
+      
+      // Encontrar a qué semana (1-5) pertenece el día
+      const dayOfMonth = dateObj.getDate();
+      const weekIndex = Math.ceil(dayOfMonth / 7);
+      const weekKey = `WEEK-${weekIndex}`;
+
+      const hour = parseInt(shift.start_time.split(':')[0]);
+      const isMorning = hour < 14;
+
+      // Filtrar candidatos disponibles
+      const candidates = users.filter(u => {
+        if (u.role === Role.COORD) return false;
         
-        <div className="max-w-xl w-full bg-white rounded-[3rem] p-10 md:p-16 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] text-center animate-in zoom-in duration-700 relative z-10 border border-white/20">
-          <div className="w-24 h-24 bg-blue-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-blue-500/40 mx-auto mb-10 transform -rotate-6">
-            <i className="fa-solid fa-layer-group text-white text-4xl"></i>
-          </div>
-          
-          <h1 className="text-3xl md:text-5xl font-black text-slate-900 leading-tight mb-4">
-            Bienvenidos a la <br/> <span className="text-blue-600">PPOC</span>
-          </h1>
-          
-          <p className="text-xl font-bold text-slate-800 mb-2">La Barbera Villajoyosa</p>
-          <p className="text-slate-500 mb-10 font-medium">Gestión inteligente de turnos y voluntarios.</p>
-          
-          <div className="space-y-4">
-            <button 
-              onClick={() => setHasEntered(true)}
-              className="w-full py-6 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xl shadow-2xl shadow-blue-500/30 transition-all active:scale-95 group flex items-center justify-center gap-4"
-            >
-              Entrar a la Plataforma
-              <i className="fa-solid fa-arrow-right group-hover:translate-x-2 transition-transform"></i>
-            </button>
+        // Evitar asignar a alguien que ya está en este turno
+        const alreadyInShift = assignments.some(a => a.shift_id === shift.id && a.user_id === u.id) || 
+                               newAssignments.some(a => a.shift_id === shift.id && a.user_id === u.id);
+        if (alreadyInShift) return false;
 
-            {showInstallBtn && (
-              <button 
-                onClick={handleInstallClick}
-                className="w-full py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all animate-in fade-in"
-              >
-                <i className="fa-brands fa-android text-green-400"></i>
-                Instalar App en Android
-              </button>
-            )}
-          </div>
-          
-          <div className="mt-12 flex items-center justify-center gap-6 opacity-30">
-            <i className="fa-solid fa-calendar-check text-2xl"></i>
-            <i className="fa-solid fa-user-group text-2xl"></i>
-            <i className="fa-solid fa-shield-halved text-2xl"></i>
-          </div>
-        </div>
-      </div>
-    );
-  }
+        const avail = availabilities.find(a => a.user_id === u.id && a.week_start === weekKey);
+        
+        if (avail) {
+          // Lógica con disponibilidad real proporcionada por el usuario
+          if (isSaturday && !avail.saturday_available) return false;
+          if (avail.slot === AvailabilitySlot.AMBOS) return true;
+          if (isMorning && avail.slot === AvailabilitySlot.MANANA) return true;
+          if (!isMorning && avail.slot === AvailabilitySlot.TARDE) return true;
+          return false;
+        } else {
+          // Lógica por defecto: "asumira que puede en todos los turnos menos el sabado"
+          if (isSaturday) return false;
+          return true; // Disponible mañana y tarde en días laborables
+        }
+      });
 
-  if (!currentUser) {
-    const users = db.getUsers();
-    const filteredUsers = users.filter(u => 
-      `${u.nombre} ${u.apellidos}`.toLowerCase().includes(loginSearch.toLowerCase())
-    );
+      // Ordenar candidatos por carga de trabajo (el que menos lleva, primero)
+      candidates.sort((a, b) => (userLoad[a.id] || 0) - (userLoad[b.id] || 0));
 
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-hidden text-center">
-          
-          {selectedUserForPass ? (
-            <div className="animate-in slide-in-from-right duration-300">
-              <button 
-                onClick={() => setSelectedUserForPass(null)}
-                className="text-slate-400 hover:text-slate-600 mb-6 flex items-center gap-2 font-bold text-sm"
-              >
-                <i className="fa-solid fa-arrow-left"></i> Volver
-              </button>
-              
-              <div className="text-center mb-8">
-                <div className="w-20 h-20 rounded-full bg-blue-100 mx-auto mb-4 flex items-center justify-center text-blue-600 text-3xl shadow-inner border-4 border-white">
-                  <i className="fa-solid fa-lock"></i>
-                </div>
-                <h2 className="text-xl font-black text-slate-800">Acceso Coordinador</h2>
-                <p className="text-sm text-slate-500 font-medium">Introduce la contraseña de seguridad</p>
-              </div>
+      const needed = shift.max_people - currentAssigned;
+      const selected = candidates.slice(0, needed);
 
-              <div className="space-y-4">
-                <div>
-                  <input 
-                    type="password"
-                    autoFocus
-                    value={passwordInput}
-                    onChange={(e) => { setPasswordInput(e.target.value); setPassError(false); }}
-                    onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
-                    placeholder="••••"
-                    className={`w-full text-center text-2xl tracking-[1em] py-4 bg-slate-50 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all ${
-                      passError ? 'border-red-300 bg-red-50 text-red-500' : 'border-slate-100 text-slate-700'
-                    }`}
-                  />
-                  {passError && <p className="text-center text-red-500 text-xs font-bold mt-2">Contraseña incorrecta</p>}
-                </div>
+      selected.forEach(u => {
+        newAssignments.push({
+          id: Date.now() + Math.random(),
+          shift_id: shift.id,
+          user_id: u.id,
+          status: AssignmentStatus.PENDING
+        });
+        userLoad[u.id] = (userLoad[u.id] || 0) + 1;
+      });
+    });
 
-                <button 
-                  onClick={verifyPassword}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200 transition-all"
-                >
-                  Confirmar Acceso
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="animate-in slide-in-from-left duration-300">
-              <div className="flex items-center gap-4 mb-6 text-left">
-                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-                  <i className="fa-solid fa-layer-group text-white text-2xl"></i>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black text-slate-800">Acceso</h1>
-                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-none mt-1">Selecciona tu perfil</p>
-                </div>
-              </div>
-              
-              <div className="relative mb-6">
-                <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
-                <input 
-                  type="text"
-                  placeholder="Busca tu nombre..."
-                  value={loginSearch}
-                  onChange={(e) => setLoginSearch(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-blue-50 transition-all font-medium"
-                />
-              </div>
-              
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar text-left">
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map(u => (
-                    <button 
-                      key={u.id}
-                      onClick={() => attemptLogin(u)}
-                      className="w-full flex items-center gap-4 p-3 rounded-2xl border border-transparent hover:border-blue-100 hover:bg-blue-50 transition-all text-left group"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-sm">
-                        <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="avatar" className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{u.nombre} {u.apellidos}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{u.rol}</p>
-                      </div>
-                      <i className="fa-solid fa-chevron-right text-slate-200 group-hover:text-blue-400 transition-colors"></i>
-                    </button>
-                  ))
-                ) : (
-                  <div className="py-10 text-center text-slate-400">
-                    <i className="fa-solid fa-user-slash text-2xl mb-2 opacity-20"></i>
-                    <p className="text-xs font-bold uppercase tracking-wider">No se encontraron usuarios</p>
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-                {showInstallBtn ? (
-                  <button 
-                    onClick={handleInstallClick}
-                    className="w-full py-3 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-black transition-all active:scale-95 shadow-xl shadow-slate-200"
-                  >
-                    <i className="fa-brands fa-android text-lg text-green-400"></i>
-                    Instalar App en Android
-                    <i className="fa-solid fa-download"></i>
-                  </button>
-                ) : (
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">PWA de Gestión de Turnos</p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    if (newAssignments.length > 0) {
+      setAssignments(prev => [...prev, ...newAssignments]);
+      alert(`¡Autoplan completado! Se han generado ${newAssignments.length} nuevas asignaciones. Los voluntarios sin disponibilidad han sido asignados automáticamente (excepto sábados).`);
+    } else {
+      alert("No se han podido generar nuevas asignaciones. Comprueba que haya turnos vacíos en el mes seleccionado.");
+    }
+  }, [currentMonth, shifts, availabilities, users, assignments]);
+
+  const broadcastUrgency = useCallback((fromUserId: string, shiftId: number) => {
+    const shift = shifts.find(s => s.id === shiftId);
+    const location = locations.find(l => l.id === shift?.location_id);
+    const msg = `¡ALERTA URGENTE! Necesitamos cubrir un turno en ${location?.name} el día ${shift?.date}. ¿Alguien puede asistir?`;
+    const newAlert: Alert = {
+      id: Date.now(),
+      user_id: fromUserId,
+      shift_id: shiftId,
+      type: AlertType.URGENT_CALL,
+      message: msg,
+      created_at: new Date().toISOString()
+    };
+    setAlerts(prev => [newAlert, ...prev]);
+    addNotification("⚠️ Turno por cubrir", msg);
+  }, [shifts, locations, addNotification]);
+
+  const claimShift = useCallback((claimingUserId: string, alertId: number) => {
+    const alert = alerts.find(a => a.id === alertId);
+    if (!alert) return;
+    setAssignments(prev => [...prev, {
+        id: Date.now(),
+        shift_id: alert.shift_id,
+        user_id: claimingUserId,
+        status: AssignmentStatus.CONFIRMED,
+        confirmed_at: new Date().toISOString()
+      }]);
+    setAlerts(prev => prev.filter(a => a.id !== alertId));
+    const claimingUser = users.find(u => u.id === claimingUserId);
+    addNotification("✅ Turno Cubierto", `${claimingUser?.display_name} ha aceptado el turno urgente.`, 'admin-1');
+  }, [alerts, users, addNotification]);
+
+  const unreadMessagesCount = useMemo(() => {
+    if (!user) return 0;
+    if (user.role === Role.COORD) {
+      return messages.filter(m => !m.is_broadcast && m.to_user_id === 'admin-1' && !m.read).length;
+    } else {
+      return messages.filter(m => (m.is_broadcast || m.to_user_id === user.id) && !m.read).length;
+    }
+  }, [user, messages]);
+
+  if (!user) {
+    return <Login onLogin={handleLogin} registeredUsers={users} />;
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50 text-slate-900 font-sans">
-      {selectedUserForPass && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 text-center">
-          <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl animate-in zoom-in duration-300">
-            <button 
-              onClick={() => setSelectedUserForPass(null)}
-              className="text-slate-400 hover:text-slate-600 mb-6 flex items-center gap-2 font-bold text-sm"
-            >
-              <i className="fa-solid fa-xmark"></i> Cancelar
-            </button>
-            <div className="text-center mb-8">
-              <div className="w-20 h-20 rounded-full bg-blue-100 mx-auto mb-4 flex items-center justify-center text-blue-600 text-3xl shadow-inner border-4 border-white">
-                <i className="fa-solid fa-lock"></i>
-              </div>
-              <h2 className="text-xl font-black text-slate-800">Acceso Coordinador</h2>
-              <p className="text-sm text-slate-500 font-medium">Confirma tu identidad para el rol Coordinador</p>
-            </div>
-            <div className="space-y-4 text-center">
-              <input 
-                type="password"
-                autoFocus
-                value={passwordInput}
-                onChange={(e) => { setPasswordInput(e.target.value); setPassError(false); }}
-                onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
-                placeholder="Contraseña"
-                className={`w-full text-center text-xl py-4 bg-slate-50 border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-100 transition-all ${
-                  passError ? 'border-red-300 bg-red-50 text-red-500' : 'border-slate-100 text-slate-700'
-                }`}
-              />
-              {passError && <p className="text-center text-red-500 text-xs font-bold">Contraseña incorrecta</p>}
-              <button 
-                onClick={verifyPassword}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl shadow-blue-200 transition-all"
-              >
-                Ingresar
-              </button>
-            </div>
-          </div>
-        </div>
+    <Layout 
+      user={user} 
+      onLogout={handleLogout} 
+      notifications={currentUserNotifications}
+      onMarkAsRead={markNotificationsAsRead}
+      onDeleteNotification={deleteNotification}
+      unreadMessagesCount={unreadMessagesCount}
+    >
+      {user.role === Role.COORD ? (
+        <CoordinatorView 
+          locations={locations} 
+          setLocations={setLocations}
+          users={users}
+          setUsers={setUsers}
+          shifts={shifts}
+          setShifts={setShifts}
+          assignments={assignments}
+          setAssignments={setAssignments}
+          addNotification={(t, b) => addNotification(t, b, 'admin-1')}
+          alerts={alerts}
+          setAlerts={setAlerts}
+          availabilities={availabilities}
+          messages={messages}
+          onSendMessage={handleSendMessage}
+          onMarkMessagesAsRead={markMessagesAsRead}
+          onTransitionMonth={() => setCurrentMonth(prev => prev === '2026-01' ? '2026-02' : '2026-01')}
+          currentMonthLabel={currentMonth === '2026-01' ? 'Enero 2026' : 'Febrero 2026'}
+          handleAutoPlanManual={handleAutoPlanManual}
+        />
+      ) : (
+        <UserView 
+          user={user}
+          locations={locations}
+          users={users}
+          shifts={shifts}
+          assignments={assignments}
+          setAssignments={setAssignments}
+          addNotification={(t, b) => addNotification(t, b, user.id)}
+          notifications={currentUserNotifications}
+          messages={messages}
+          onSendMessage={handleSendMessage}
+          onMarkNotificationsAsRead={markNotificationsAsRead}
+          onMarkMessagesAsRead={markMessagesAsRead}
+          broadcastUrgency={broadcastUrgency}
+          alerts={alerts}
+          claimShift={claimShift}
+          onSaveAvailability={submitAvailability}
+          availabilities={availabilities}
+          currentMonthLabel={currentMonth === '2026-01' ? 'Enero 2026' : 'Febrero 2026'}
+        />
       )}
-
-      <Sidebar 
-        currentView={currentView} 
-        onViewChange={setCurrentView} 
-        user={currentUser}
-        onRoleSwitch={handleRoleSwitch}
-        unreadCount={notifs.filter(n => !n.leida).length}
-        onLogout={handleLogout}
-      />
-      
-      <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto">
-        <div className="max-w-6xl mx-auto pb-20">
-          <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-black text-slate-800 tracking-tight">
-                Hola, {currentUser.nombre} 👋
-              </h1>
-              <p className="text-slate-500 font-medium">
-                {currentUser.rol === 'coordinador' ? 'Panel de Gestión Estratégica' : 'Gestión de tus turnos y tareas'}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {currentUser.rol === 'coordinador' && (
-                <button 
-                  onClick={handleSync}
-                  disabled={isSyncing}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black transition-all shadow-lg active:scale-95 disabled:opacity-50"
-                >
-                  <i className={`fa-solid fa-cloud-arrow-up ${isSyncing ? 'animate-bounce' : ''}`}></i>
-                  {isSyncing ? 'Sincronizando...' : 'Sync MongoDB'}
-                </button>
-              )}
-              <div className="hidden md:block text-right">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Estado Local</p>
-                <div className="flex items-center gap-2 justify-end">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-[11px] font-bold text-slate-600">Sincronizado</span>
-                </div>
-              </div>
-            </div>
-          </header>
-
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {renderView()}
-          </div>
-        </div>
-      </main>
-    </div>
+    </Layout>
   );
 };
 

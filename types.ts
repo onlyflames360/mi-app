@@ -1,103 +1,95 @@
 
-export type Role = 'usuario' | 'coordinador';
-export type ShiftStatus = 'pendiente' | 'confirmado' | 'rechazado' | 'en_sustitucion' | 'reasignado' | 'cancelado';
-export type SlotType = 'manana' | 'tarde' | 'sabado';
-export type AvailabilityStatus = 'manana' | 'tarde' | 'ambos' | 'no_puedo';
-export type Gender = 'masculino' | 'femenino';
+export enum Role {
+  COORD = 'COORD',
+  USER = 'USER'
+}
+
+export enum AssignmentStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  DECLINED = 'DECLINED',
+  REASSIGNED = 'REASSIGNED'
+}
+
+export enum AvailabilitySlot {
+  MANANA = 'MANANA',
+  TARDE = 'TARDE',
+  AMBOS = 'AMBOS',
+  NO_PUEDO = 'NO_PUEDO'
+}
+
+export enum AlertType {
+  CAN_ATTEND = 'CAN_ATTEND',
+  CANNOT_ATTEND = 'CANNOT_ATTEND',
+  URGENT_CALL = 'URGENT_CALL'
+}
 
 export interface User {
   id: string;
-  nombre: string;
-  apellidos: string;
-  rol: Role;
-  activo: boolean;
-  genero: Gender;
-  avatarSeed?: string;
-  avatarUrl?: string;
-  skills?: string[];
-  // Propiedades de compatibilidad para evitar errores en archivos legacy
-  name?: any; 
-  shiftsFulfilled?: any;
-  shiftsCovered?: any;
-  isAvailable?: any;
-  availableForNextMonth?: any;
-  notificationsEnabled?: any;
-  availabilityNextMonth?: any;
+  display_name: string;
+  email?: string;
+  phone?: string;
+  role: Role;
+  created_at: string;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  color_hex: string;
 }
 
 export interface Shift {
-  id: string;
-  fecha: string; // ISO Date
-  inicio: string; // HH:mm
-  fin: string; // HH:mm
-  lugar: string;
-  franja: SlotType;
-  estado: ShiftStatus;
-  asignadoA: string; // User ID
-  motivoRechazo?: string;
-  // Propiedades de compatibilidad para evitar errores en archivos legacy
-  date?: any;
-  assignedUsers?: any; 
-  isCancelledByAdmin?: any;
-  isReassignmentOpen?: any;
-  location?: any;
-  startTime?: any;
-  endTime?: any;
-  dayName?: any;
-  cancellationReason?: any;
+  id: number;
+  date: string; // ISO YYYY-MM-DD
+  start_time: string; // HH:MM
+  end_time: string; // HH:MM
+  location_id: number;
+  notes?: string;
+  max_people: number;
 }
 
-export interface DayAvailability {
-  fecha: string;
-  estado: AvailabilityStatus;
+export interface Assignment {
+  id: number;
+  shift_id: number;
+  user_id: string;
+  status: AssignmentStatus;
+  confirmed_at?: string;
 }
 
-export interface WeekAvailability {
-  semana: number;
-  dias: DayAvailability[];
+export interface Availability {
+  id: number;
+  user_id: string;
+  week_start: string;
+  slot: AvailabilitySlot;
+  saturday_available: boolean;
 }
 
-export interface MonthlyAvailability {
-  idUsuario: string;
-  mes: string; // YYYY-MM
-  semanas: WeekAvailability[];
-  estado: 'borrador' | 'enviada' | 'bloqueada';
-  timestamp: string;
+export interface Alert {
+  id: number;
+  user_id: string;
+  shift_id: number;
+  type: AlertType;
+  message?: string;
+  created_at: string;
 }
 
-export interface AppNotification {
-  id: string;
-  tipo: 'urgente_cobertura' | 'info' | 'cambio';
-  titulo: string;
-  cuerpo: string;
-  color: 'rojo' | 'normal';
-  refTurnoId?: string;
-  destinatarios: string[]; // User IDs o ['all']
-  timestamp: string;
-  leida: boolean;
-}
-
-export enum ViewType {
-  USER_TASKS = 'USER_TASKS',
-  USER_AVAILABILITY = 'USER_AVAILABILITY',
-  USER_NOTIFICATIONS = 'USER_NOTIFICATIONS',
-  USER_MESSAGING = 'USER_MESSAGING',
-  USER_PROFILE = 'USER_PROFILE',
-  COORD_USERS = 'COORD_USERS',
-  COORD_PLANNING = 'COORD_PLANNING',
-  COORD_CALENDAR = 'COORD_CALENDAR',
-  COORD_STATS = 'COORD_STATS',
-  COORD_NOTIFICATIONS = 'COORD_NOTIFICATIONS',
-  COORD_MESSAGING = 'COORD_MESSAGING'
-}
-
-export interface GroundingLink {
-  uri: string;
+export interface Notification {
+  id: number;
   title: string;
+  body: string;
+  read: boolean;
+  timestamp: string;
+  user_id?: string; // ID del destinatario. Si no está definido, es para todos (broadcast).
 }
 
 export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
+  id: number;
+  from_user_id: string;
+  from_user_name: string;
+  to_user_id?: string;
+  body: string;
+  timestamp: string;
+  is_broadcast: boolean;
+  read: boolean;
 }
