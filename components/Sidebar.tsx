@@ -1,8 +1,9 @@
 import React from 'react';
 import { Role, User, Notification } from '../types';
+import { NAV_ITEMS_COORD, NAV_ITEMS_USER } from '../constants.tsx'; // Updated import path
 
 interface SidebarProps {
-  currentView: string; // Changed to string to match activeTab in Layout
+  currentView: string;
   onViewChange: (v: string) => void;
   user: User;
   onRoleSwitch: (r: Role) => void;

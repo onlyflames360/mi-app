@@ -1,6 +1,5 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { OCR_SEED_SYSTEM_PROMPT } from '../constants';
+import { OCR_SEED_SYSTEM_PROMPT } from '../constants.tsx'; // Updated import path
 
 export async function processOCRImages(imagesBase64: string[]) {
   // Always initialize GoogleGenAI inside the function to use the correct API key

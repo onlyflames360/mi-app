@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Location, Shift, Assignment, AssignmentStatus, AvailabilitySlot, Alert, Notification, Message, Role, Availability } from '../types';
-import { MOTIVATIONAL_PHRASES } from '../constants';
+import { MOTIVATIONAL_PHRASES } from '../constants.tsx'; // Updated import path
 import { 
   CheckCircle2, 
   XCircle, 

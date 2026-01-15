@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message, Gender } from './types'; // Added Gender
+import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message, Gender } from './types';
 import Login from './components/Login';
 import Layout from './components/Layout';
 import CoordinatorView from './components/CoordinatorView';
 import UserView from './components/UserView';
-import { SEED_DATA } from './constants';
-import { db } from './services/db'; // Import db for consistency
+import { SEED_DATA } from './constants.tsx'; // Updated import path
+import { db } from './services/db';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
