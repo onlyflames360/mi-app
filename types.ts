@@ -31,8 +31,8 @@ export enum Gender {
 
 export interface User {
   id: string;
+  email: string; // Email es ahora requerido para Supabase
   display_name: string;
-  email?: string;
   phone?: string;
   role: Role;
   created_at: string;

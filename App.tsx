@@ -4,8 +4,9 @@ import Login from './components/Login';
 import Layout from './components/Layout';
 import CoordinatorView from './components/CoordinatorView';
 import UserView from './components/UserView';
-import { SEED_DATA } from './constants.tsx'; // Updated import path
+import { SEED_DATA } from './constants.tsx';
 import { db } from './services/db';
+import { supabase } from './services/supabase'; // Importar el cliente Supabase
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -19,20 +20,20 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMonth, setCurrentMonth] = useState('2026-01');
   const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
+  const [loadingAuth, setLoadingAuth] = useState(true); // Nuevo estado para la carga de autenticación
 
   // Initialize data from SEED_DATA
   useEffect(() => {
-    const storedUser = localStorage.getItem('ppoc_user');
-    
     setLocations(SEED_DATA.locations.map((l, i) => ({ id: i + 1, ...l })));
 
     const initialUsers: User[] = [
-      { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO },
+      { id: 'admin-1', email: 'admin@ppoc.com', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO },
       ...SEED_DATA.users.map((name, i) => {
         const firstName = name.split(' ')[0];
         const isFemale = ["ANA", "ROSA", "DOLY", "MAITE", "OTILIA", "CONCHI", "ARACELI", "JUANITA", "ANDREA", "TOÑI", "PAULA", "ADELA", "JACQUELINE", "MANUELA", "PAQUI", "DESI", "PALOMA", "BLANCA", "ANABEL", "RAQUEL", "MARI", "ABIGAIL", "MARTA", "MÍRIAM", "MÓNICA", "LIA", "JANINE", "PATTY"].includes(firstName.toUpperCase());
         return {
           id: `u-${i}`,
+          email: `${firstName.toLowerCase()}@ppoc.com`, // Email ficticio para usuarios seed
           display_name: name.toUpperCase(),
           role: Role.USER,
           created_at: new Date().toISOString(),
@@ -44,14 +45,6 @@ const App: React.FC = () => {
     ];
     setUsers(initialUsers);
     db.setUsers(initialUsers); // Ensure db is updated with initial users
-
-    if (storedUser) {
-      const parsed = JSON.parse(storedUser);
-      const exists = initialUsers.find(u => u.display_name === parsed.display_name);
-      if (exists || parsed.display_name === 'COORDINADOR PRINCIPAL') {
-        setUser(exists || parsed);
-      }
-    }
 
     const initialShifts: Shift[] = [];
     const initialAssignments: Assignment[] = [];
@@ -91,6 +84,68 @@ const App: React.FC = () => {
     const storedAvails = localStorage.getItem('ppoc_availabilities');
     if (storedAvails) setAvailabilities(JSON.parse(storedAvails));
   }, []);
+
+  // Supabase Auth State Listener
+  useEffect(() => {
+    if (!supabase) {
+      console.warn("Supabase client not initialized. Running in LocalStorage mode.");
+      setLoadingAuth(false);
+      return;
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          // Map Supabase session user to our User type
+          const supabaseUser = session.user;
+          const existingLocalUser = users.find(u => u.id === supabaseUser.id);
+
+          const appUser: User = {
+            id: supabaseUser.id,
+            email: supabaseUser.email || 'unknown@example.com',
+            display_name: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0].toUpperCase() || 'Voluntario',
+            role: supabaseUser.user_metadata?.role || Role.USER,
+            created_at: supabaseUser.created_at,
+            activo: supabaseUser.user_metadata?.activo || true,
+            genero: supabaseUser.user_metadata?.genero || Gender.MASCULINO,
+            avatarSeed: supabaseUser.user_metadata?.avatarSeed || supabaseUser.email?.split('@')[0],
+          };
+          setUser(appUser);
+          // Ensure this user is in our local 'users' state if they are new
+          if (!existingLocalUser) {
+            setUsers(prev => [...prev, appUser]);
+            db.setUsers([...users, appUser]);
+          }
+        } else {
+          setUser(null);
+        }
+        setLoadingAuth(false);
+      }
+    );
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        const supabaseUser = session.user;
+        const appUser: User = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || 'unknown@example.com',
+          display_name: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0].toUpperCase() || 'Voluntario',
+          role: supabaseUser.user_metadata?.role || Role.USER,
+          created_at: supabaseUser.created_at,
+          activo: supabaseUser.user_metadata?.activo || true,
+          genero: supabaseUser.user_metadata?.genero || Gender.MASCULINO,
+          avatarSeed: supabaseUser.user_metadata?.avatarSeed || supabaseUser.email?.split('@')[0],
+        };
+        setUser(appUser);
+      }
+      setLoadingAuth(false);
+    });
+
+    return () => {
+      authListener.unsubscribe();
+    };
+  }, [users]); // Dependencia de 'users' para asegurar que el nuevo usuario se añada si no existe
 
   // Save availabilities to local storage when changed
   useEffect(() => {
@@ -184,39 +239,22 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = (authenticatedUser: User) => {
-    const normalizedName = authenticatedUser.display_name.toUpperCase().trim();
-    if (normalizedName === '1914') {
-      const admin = { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO };
-      setUser(admin);
-      localStorage.setItem('ppoc_user', JSON.stringify(admin));
-      return;
-    }
-
-    const registered = users.find(u => u.display_name.toUpperCase() === normalizedName);
-    if (registered) {
-      setUser(registered);
-      localStorage.setItem('ppoc_user', JSON.stringify(registered));
-    } else {
-      // If not registered, create a new user with default values
-      const newUser: User = {
-        id: `u-${Date.now()}`,
-        display_name: normalizedName,
-        role: Role.USER,
-        created_at: new Date().toISOString(),
-        activo: true,
-        genero: Gender.MASCULINO, // Default gender, could be improved
-        avatarSeed: normalizedName.split(' ')[0] // Default avatar seed
-      };
-      setUser(newUser);
-      setUsers(prev => [...prev, newUser]);
-      db.setUsers([...users, newUser]); // Update db with new user
-      localStorage.setItem('ppoc_user', JSON.stringify(newUser));
+    // This function is now called by Login.tsx after successful Supabase auth
+    // or for the local admin login.
+    setUser(authenticatedUser);
+    // For Supabase users, their data is managed by Supabase.
+    // For the local admin, we ensure it's in our local 'users' state.
+    if (authenticatedUser.role === Role.COORD && !users.some(u => u.id === authenticatedUser.id)) {
+      setUsers(prev => [...prev, authenticatedUser]);
+      db.setUsers([...users, authenticatedUser]);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
-    localStorage.removeItem('ppoc_user');
   };
 
   const currentUserNotifications = useMemo(() => {
@@ -361,6 +399,14 @@ const App: React.FC = () => {
       return messages.filter(m => (m.is_broadcast || m.to_user_id === user.id) && !m.read).length;
     }
   }, [user, messages]);
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <Login onLogin={handleLogin} registeredUsers={users} />;

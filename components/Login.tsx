@@ -1,95 +1,101 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { User, Role, Gender } from '../types'; // Added Gender
-import { LucideIcon, Fingerprint as FingerprintIcon, LogIn as LogInIcon, UserPlus as UserPlusIcon, ShieldCheck as ShieldCheckIcon, User as UserIconLucide, AlertCircle as AlertCircleIcon, Check as CheckIcon, X as XIcon } from 'lucide-react';
+import { User, Role, Gender } from '../types';
+import { Fingerprint as FingerprintIcon, LogIn as LogInIcon, UserPlus as UserPlusIcon, ShieldCheck as ShieldCheckIcon, User as UserIconLucide, AlertCircle as AlertCircleIcon, Check as CheckIcon, X as XIcon, Mail, Lock } from 'lucide-react';
+import { supabase } from '../services/supabase'; // Importar el cliente Supabase
 
 interface LoginProps {
   onLogin: (user: User) => void;
-  registeredUsers: User[];
+  registeredUsers: User[]; // Mantener para la lógica del coordinador
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin, registeredUsers }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState(''); // Para el registro
   const [loading, setLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestionRef = useRef<HTMLDivElement>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [adminCode, setAdminCode] = useState('');
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
 
-  const upperName = useMemo(() => fullName.toUpperCase().trim(), [fullName]);
-  
-  const suggestions = useMemo(() => {
-    if (upperName.length < 2) return [];
-    return registeredUsers
-      .filter(u => u.display_name.toUpperCase().includes(upperName))
-      .slice(0, 5);
-  }, [upperName, registeredUsers]);
-
-  const isUserRegistered = useMemo(() => {
-    if (!upperName) return false;
-    if (upperName === '1914') return true;
-    return registeredUsers.some(u => u.display_name.toUpperCase() === upperName);
-  }, [upperName, registeredUsers]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleAuth = async () => {
-    if (!upperName) {
-      alert("Por favor, introduce tu nombre.");
-      return;
-    }
-
-    if (!isUserRegistered) {
-      alert("Lo sentimos, este nombre no figura en la lista del coordinador. Por favor, revisa que esté bien escrito.");
-      return;
-    }
-
+  const handleLogin = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    
-    let role = Role.USER;
-    let displayName = upperName;
-    let userId = "";
-    let genero = Gender.MASCULINO; // Default gender
-    let activo = true; // Default active status
-    let avatarSeed = upperName.split(' ')[0]; // Default avatar seed
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    if (upperName === '1914') {
-      role = Role.COORD;
-      displayName = 'COORDINADOR PRINCIPAL';
-      userId = 'admin-1';
-    } else {
-      const existing = registeredUsers.find(u => u.display_name.toUpperCase() === upperName);
-      role = existing?.role || Role.USER;
-      userId = existing?.id || Math.random().toString(36).substr(2, 9);
-      genero = existing?.genero || Gender.MASCULINO;
-      activo = existing?.activo || true;
-      avatarSeed = existing?.avatarSeed || upperName.split(' ')[0];
+    if (error) {
+      alert(`Error al iniciar sesión: ${error.message}`);
+      setLoading(false);
+      return;
     }
 
-    const mockUser: User = {
-      id: userId,
-      display_name: displayName,
-      role: role,
-      created_at: new Date().toISOString(),
-      genero: genero,
-      activo: activo,
-      avatarSeed: avatarSeed
-    };
-    
+    if (data.user) {
+      // Supabase user object might not have all our custom fields directly
+      // We'll create a local User object based on Supabase data and our defaults
+      const localUser: User = {
+        id: data.user.id,
+        email: data.user.email || email,
+        display_name: data.user.user_metadata?.display_name || email.split('@')[0].toUpperCase(),
+        role: data.user.user_metadata?.role || Role.USER,
+        created_at: data.user.created_at,
+        activo: data.user.user_metadata?.activo || true,
+        genero: data.user.user_metadata?.genero || Gender.MASCULINO,
+        avatarSeed: data.user.user_metadata?.avatarSeed || email.split('@')[0],
+      };
+      onLogin(localUser);
+    }
     setLoading(false);
-    onLogin(mockUser);
   };
 
-  const selectSuggestion = (name: string) => {
-    setFullName(name);
-    setShowSuggestions(false);
+  const handleRegister = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: fullName.toUpperCase(),
+          role: Role.USER,
+          activo: true,
+          genero: Gender.MASCULINO, // Default, user can change later
+          avatarSeed: fullName.split(' ')[0],
+        },
+      },
+    });
+
+    if (error) {
+      alert(`Error al registrarse: ${error.message}`);
+      setLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      alert('¡Registro exitoso! Por favor, revisa tu correo para verificar tu cuenta.');
+      setIsRegistering(false); // Volver a la vista de login
+      setEmail('');
+      setPassword('');
+      setFullName('');
+    }
+    setLoading(false);
+  };
+
+  const handleAdminAuth = async () => {
+    if (adminCode === '1914') {
+      const adminUser: User = {
+        id: 'admin-1',
+        email: 'admin@ppoc.com', // Email ficticio para el admin local
+        display_name: 'COORDINADOR PRINCIPAL',
+        role: Role.COORD,
+        created_at: new Date().toISOString(),
+        activo: true,
+        genero: Gender.MASCULINO,
+        avatarSeed: 'admin-1',
+      };
+      onLogin(adminUser);
+    } else {
+      alert('Código de administrador incorrecto.');
+    }
   };
 
   return (
@@ -106,85 +112,138 @@ const Login: React.FC<LoginProps> = ({ onLogin, registeredUsers }) => {
         </div>
 
         <div className="space-y-6">
-          <div className="space-y-2 relative" ref={suggestionRef}>
-            <label className="text-sm font-black text-slate-700 ml-1 flex items-center gap-2 uppercase tracking-tighter">
-              <UserIconLucide size={16} className="text-blue-600" />
-              Tu Nombre de Usuario
-            </label>
-            <div className="relative group">
-              <input 
-                type="text" 
-                value={fullName}
-                onFocus={() => setShowSuggestions(true)}
-                onChange={(e) => {
-                  setFullName(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
-                placeholder="ESCRIBE TU NOMBRE COMPLETO"
-                className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-slate-50 text-slate-800 font-black placeholder:text-slate-300 placeholder:font-medium uppercase"
-              />
-              {upperName === '1914' && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-600 flex items-center gap-1 animate-bounce">
-                  <ShieldCheckIcon size={24} />
-                  <span className="text-[10px] font-black uppercase">Admin</span>
+          {!showAdminPanel ? (
+            <>
+              {isRegistering && (
+                <div className="space-y-2">
+                  <label className="text-sm font-black text-slate-700 ml-1 flex items-center gap-2 uppercase tracking-tighter">
+                    <UserIconLucide size={16} className="text-blue-600" />
+                    Tu Nombre Completo
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="EJ: JUAN PÉREZ"
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-slate-50 text-slate-800 font-black placeholder:text-slate-300 placeholder:font-medium uppercase"
+                  />
                 </div>
               )}
-            </div>
-            
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-10 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="p-2">
-                  {suggestions.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => selectSuggestion(u.display_name)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-blue-50 rounded-xl transition-all group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center font-black text-slate-400 text-xs group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                          {u.display_name.charAt(0)}
-                        </div>
-                        <span className="font-black text-slate-700 text-xs uppercase tracking-tight group-hover:text-blue-700">
-                          {u.display_name}
-                        </span>
-                      </div>
-                      <CheckIcon size={14} className="text-blue-500 opacity-0 group-hover:opacity-100" />
-                    </button>
-                  ))}
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-black text-slate-700 ml-1 flex items-center gap-2 uppercase tracking-tighter">
+                  <Mail size={16} className="text-blue-600" />
+                  Correo Electrónico
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="TU@CORREO.COM"
+                  className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-slate-50 text-slate-800 font-black placeholder:text-slate-300 placeholder:font-medium"
+                />
               </div>
-            )}
-            
-            {upperName.length > 3 && !isUserRegistered && !showSuggestions && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-xl border border-red-100 text-red-700 mt-2">
-                <AlertCircleIcon size={16} className="shrink-0" />
-                <p className="text-[10px] font-bold uppercase tracking-tight leading-tight">
-                  No estás en la lista. Debes confirmar tu nombre con el coordinador.
-                </p>
+              <div className="space-y-2">
+                <label className="text-sm font-black text-slate-700 ml-1 flex items-center gap-2 uppercase tracking-tighter">
+                  <Lock size={16} className="text-blue-600" />
+                  Contraseña
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-slate-50 text-slate-800 font-black placeholder:text-slate-300 placeholder:font-medium"
+                />
               </div>
-            )}
-          </div>
 
-          <button
-            onClick={handleAuth}
-            disabled={loading || (upperName.length > 0 && !isUserRegistered)}
-            className="w-full bg-slate-900 hover:bg-blue-600 disabled:bg-slate-200 text-white font-black py-5 px-6 rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transition-all transform active:scale-95"
-          >
-            {loading ? (
-              <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              <>
-                <FingerprintIcon size={24} />
-                {upperName === '1914' ? 'ACCESO COORDINACIÓN' : 'CONFIRMAR Y ENTRAR'}
-              </>
-            )}
-          </button>
+              {isRegistering ? (
+                <button
+                  onClick={handleRegister}
+                  disabled={loading || !email || !password || !fullName}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white font-black py-5 px-6 rounded-2xl shadow-xl shadow-blue-200 flex items-center justify-center gap-3 transition-all transform active:scale-95"
+                >
+                  {loading ? (
+                    <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <UserPlusIcon size={24} />
+                      REGISTRARSE
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleLogin}
+                  disabled={loading || !email || !password}
+                  className="w-full bg-slate-900 hover:bg-blue-600 disabled:bg-slate-200 text-white font-black py-5 px-6 rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transition-all transform active:scale-95"
+                >
+                  {loading ? (
+                    <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <LogInIcon size={24} />
+                      INICIAR SESIÓN
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
+                onClick={() => setIsRegistering(prev => !prev)}
+                className="w-full text-blue-600 font-bold text-sm mt-4 hover:underline"
+              >
+                {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+              </button>
+
+              <div className="relative flex py-5 items-center">
+                <div className="flex-grow border-t border-gray-300"></div>
+                <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase">O</span>
+                <div className="flex-grow border-t border-gray-300"></div>
+              </div>
+
+              <button
+                onClick={() => setShowAdminPanel(true)}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-900/40"
+              >
+                Acceso Administrador
+              </button>
+            </>
+          ) : (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Código de Seguridad</label>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  autoFocus
+                  value={adminCode}
+                  onChange={(e) => setAdminCode(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAdminAuth()}
+                  placeholder="••••"
+                  className="flex-1 min-w-0 px-3 sm:px-5 py-4 bg-white/5 border-2 border-white/10 rounded-2xl focus:border-indigo-500 outline-none font-black text-2xl tracking-[0.5em] sm:tracking-[1em] text-center text-slate-800"
+                />
+                <button
+                  onClick={handleAdminAuth}
+                  className="shrink-0 w-14 sm:w-16 h-14 sm:h-16 bg-indigo-600 rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-lg shadow-indigo-900/20"
+                >
+                  <i className="fa-solid fa-arrow-right text-xl text-white"></i>
+                </button>
+              </div>
+              <button
+                onClick={() => setShowAdminPanel(false)}
+                className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-800 transition-colors flex items-center gap-2"
+              >
+                <i className="fa-solid fa-chevron-left text-[8px]"></i> Volver atrás
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
           <p className="text-center text-[9px] text-slate-400 font-bold leading-relaxed uppercase tracking-tighter">
-            Para entrar, tu nombre debe haber sido registrado previamente por el coordinador de turnos.
+            Para acceder, debes registrarte o usar tu cuenta existente.
           </p>
         </div>
       </div>
