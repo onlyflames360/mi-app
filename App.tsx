@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message, Gender } from './types';
-import Login from './components/Login';
+import AuthView from './components/AuthView'; // Cambiado de Login a AuthView
 import Layout from './components/Layout';
 import CoordinatorView from './components/CoordinatorView';
 import UserView from './components/UserView';
 import { SEED_DATA } from './constants.tsx';
 import { db } from './services/db';
-import { supabase } from './services/supabase'; // Importar el cliente Supabase
+// Eliminada la importación de Supabase
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -20,7 +20,7 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMonth, setCurrentMonth] = useState('2026-01');
   const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
-  const [loadingAuth, setLoadingAuth] = useState(true); // Nuevo estado para la carga de autenticación
+  // Eliminado loadingAuth
 
   // Initialize data from SEED_DATA
   useEffect(() => {
@@ -83,69 +83,18 @@ const App: React.FC = () => {
     // Load local availabilities if any
     const storedAvails = localStorage.getItem('ppoc_availabilities');
     if (storedAvails) setAvailabilities(JSON.parse(storedAvails));
+
+    // Cargar usuario actual desde localStorage si existe
+    const currentUserId = db.getCurrentUserId();
+    if (currentUserId) {
+      const storedUser = initialUsers.find(u => u.id === currentUserId);
+      if (storedUser) {
+        setUser(storedUser);
+      }
+    }
   }, []);
 
-  // Supabase Auth State Listener
-  useEffect(() => {
-    if (!supabase) {
-      console.warn("Supabase client not initialized. Running in LocalStorage mode.");
-      setLoadingAuth(false);
-      return;
-    }
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session) {
-          // Map Supabase session user to our User type
-          const supabaseUser = session.user;
-          const existingLocalUser = users.find(u => u.id === supabaseUser.id);
-
-          const appUser: User = {
-            id: supabaseUser.id,
-            email: supabaseUser.email || 'unknown@example.com',
-            display_name: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0].toUpperCase() || 'Voluntario',
-            role: supabaseUser.user_metadata?.role || Role.USER,
-            created_at: supabaseUser.created_at,
-            activo: supabaseUser.user_metadata?.activo || true,
-            genero: supabaseUser.user_metadata?.genero || Gender.MASCULINO,
-            avatarSeed: supabaseUser.user_metadata?.avatarSeed || supabaseUser.email?.split('@')[0],
-          };
-          setUser(appUser);
-          // Ensure this user is in our local 'users' state if they are new
-          if (!existingLocalUser) {
-            setUsers(prev => [...prev, appUser]);
-            db.setUsers([...users, appUser]);
-          }
-        } else {
-          setUser(null);
-        }
-        setLoadingAuth(false);
-      }
-    );
-
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        const supabaseUser = session.user;
-        const appUser: User = {
-          id: supabaseUser.id,
-          email: supabaseUser.email || 'unknown@example.com',
-          display_name: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0].toUpperCase() || 'Voluntario',
-          role: supabaseUser.user_metadata?.role || Role.USER,
-          created_at: supabaseUser.created_at,
-          activo: supabaseUser.user_metadata?.activo || true,
-          genero: supabaseUser.user_metadata?.genero || Gender.MASCULINO,
-          avatarSeed: supabaseUser.user_metadata?.avatarSeed || supabaseUser.email?.split('@')[0],
-        };
-        setUser(appUser);
-      }
-      setLoadingAuth(false);
-    });
-
-    return () => {
-      authListener.unsubscribe();
-    };
-  }, [users]); // Dependencia de 'users' para asegurar que el nuevo usuario se añada si no existe
+  // Eliminado el Supabase Auth State Listener
 
   // Save availabilities to local storage when changed
   useEffect(() => {
@@ -238,24 +187,41 @@ const App: React.FC = () => {
     }));
   }, []);
 
-  const handleLogin = (authenticatedUser: User) => {
-    // This function is now called by Login.tsx after successful Supabase auth
-    // or for the local admin login.
-    setUser(authenticatedUser);
-    // For Supabase users, their data is managed by Supabase.
-    // For the local admin, we ensure it's in our local 'users' state.
-    if (authenticatedUser.role === Role.COORD && !users.some(u => u.id === authenticatedUser.id)) {
-      setUsers(prev => [...prev, authenticatedUser]);
-      db.setUsers([...users, authenticatedUser]);
+  // Nueva función para el login de voluntarios (por nombre)
+  const handleVolunteerAuth = useCallback((userId: string) => {
+    const foundUser = users.find(u => u.id === userId);
+    if (foundUser) {
+      setUser(foundUser);
+      db.setCurrentUserId(foundUser.id);
+    } else {
+      alert('Usuario no encontrado.');
     }
-  };
+  }, [users]);
 
-  const handleLogout = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
+  // Nueva función para el login de administrador (por código)
+  const handleAdminAuth = useCallback((code: string) => {
+    if (code === '1914') {
+      const adminUser: User = {
+        id: 'admin-1',
+        email: 'admin@ppoc.com',
+        display_name: 'COORDINADOR PRINCIPAL',
+        role: Role.COORD,
+        created_at: new Date().toISOString(),
+        activo: true,
+        genero: Gender.MASCULINO,
+        avatarSeed: 'admin-1',
+      };
+      setUser(adminUser);
+      db.setCurrentUserId(adminUser.id);
+    } else {
+      alert('Código de administrador incorrecto.');
     }
+  }, []);
+
+  const handleLogout = useCallback(() => {
     setUser(null);
-  };
+    db.logout();
+  }, []);
 
   const currentUserNotifications = useMemo(() => {
     if (!user) return [];
@@ -400,16 +366,10 @@ const App: React.FC = () => {
     }
   }, [user, messages]);
 
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  // Eliminado el spinner de carga de autenticación
 
   if (!user) {
-    return <Login onLogin={handleLogin} registeredUsers={users} />;
+    return <AuthView users={users} onAdminAuth={handleAdminAuth} onVolunteerAuth={handleVolunteerAuth} />;
   }
 
   return (
