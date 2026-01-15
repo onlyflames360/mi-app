@@ -1,4 +1,5 @@
-import { User, Shift, Availability, Notification, Gender, Role } from './types'; // Updated imports
+import { User, Shift, Availability, Notification, Gender, Role } from './types';
+import { supabase } from './services/supabase'; // Importar el cliente de Supabase
 
 // Uso estricto de la variable de entorno para la conexión
 const MONGO_URI = process.env.MONGODB_URI || "mongodb+srv://Onlyflames:Qxb2XS2em2Xou0LO@cluster0.f77u9i2.mongodb.net/ppco_la_barbera";
@@ -26,13 +27,14 @@ const USER_SEED_NAMES = [
 ];
 
 const USER_SEED: User[] = [
-  { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, activo: true, genero: Gender.MASCULINO, avatarSeed: 'admin-1', created_at: new Date().toISOString() },
+  { id: 'admin-1', email: 'admin@ppoc.com', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, activo: true, genero: Gender.MASCULINO, avatarSeed: 'admin-1', created_at: new Date().toISOString() },
   ...USER_SEED_NAMES.map((name, i) => {
     const parts = name.split(' ');
     const firstName = parts[0];
     const isFemale = FEMALE_NAMES.has(firstName.toUpperCase());
     return {
       id: `u-${i}`,
+      email: `${firstName.toLowerCase().replace(/\s/g, '')}${i}@ppoc.com`, // Email ficticio
       display_name: name, // Use full name for display_name
       role: Role.USER,
       activo: true,
@@ -60,7 +62,7 @@ class DB {
 
     try {
       const dataToSync = {
-        users: this.getUsers(),
+        users: this.getUsers(), // Esto ahora debería venir de Supabase
         shifts: this.getShifts(),
         availabilities: this.getAvailabilities(),
         lastSync: new Date().toISOString()
@@ -78,24 +80,65 @@ class DB {
     }
   }
 
-  getUsers(): User[] { return this.get('users', USER_SEED); }
-  setUsers(users: User[]) { this.set('users', users); }
+  async getUsers(): Promise<User[]> {
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) {
+      console.error('Error fetching users from Supabase:', error);
+      // Fallback to local storage if Supabase fails or is empty
+      const localUsers = this.get('users', USER_SEED);
+      if (localUsers.length === 0) {
+        // If local is also empty, return the seed
+        return USER_SEED;
+      }
+      return localUsers;
+    }
+    return data as User[];
+  }
+
+  async setUsers(users: User[]) {
+    // This function will primarily be used for initial seeding or bulk updates
+    // For individual user updates, use updateUser
+    for (const user of users) {
+      const { error } = await supabase.from('users').upsert(user, { onConflict: 'id' });
+      if (error) {
+        console.error('Error upserting user to Supabase:', error);
+      }
+    }
+    // Also keep local storage updated for offline fallback
+    this.set('users', users);
+  }
   
-  updateUser(updatedUser: User) {
-    const users = this.getUsers();
+  async updateUser(updatedUser: User) {
+    const { error } = await supabase.from('users').update(updatedUser).eq('id', updatedUser.id);
+    if (error) {
+      console.error('Error updating user in Supabase:', error);
+    }
+    // Also update local storage
+    const users = this.getUsers(); // This will now fetch from Supabase
     const newUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
-    this.setUsers(newUsers);
+    this.set('users', newUsers);
+  }
+
+  async deleteUser(userId: string) {
+    const { error } = await supabase.from('users').delete().eq('id', userId);
+    if (error) {
+      console.error('Error deleting user from Supabase:', error);
+    }
+    // Also update local storage
+    const users = this.getUsers(); // This will now fetch from Supabase
+    const newUsers = users.filter(u => u.id !== userId);
+    this.set('users', newUsers);
   }
 
   getShifts(): Shift[] { return this.get('shifts', []); }
   setShifts(shifts: Shift[]) { this.set('shifts', shifts); }
 
-  getAvailabilities(): Availability[] { return this.get('availabilities', []); } // Changed to Availability
-  setAvailabilities(avs: Availability[]) { this.set('availabilities', avs); } // Changed to Availability
+  getAvailabilities(): Availability[] { return this.get('availabilities', []); }
+  setAvailabilities(avs: Availability[]) { this.set('availabilities', avs); }
 
-  getNotifications(): Notification[] { return this.get('notifications', []); } // Changed to Notification
+  getNotifications(): Notification[] { return this.get('notifications', []); }
   
-  setNotifications(notifs: Notification[]) { // Changed to Notification
+  setNotifications(notifs: Notification[]) { 
     this.set('notifications', notifs); 
   }
 

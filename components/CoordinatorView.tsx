@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, Location, Shift, Assignment, Role, AssignmentStatus, Alert, Availability, AvailabilitySlot, Message, Gender } from '../types'; // Added Gender
+import { User, Location, Shift, Assignment, Role, AssignmentStatus, Alert, Availability, AvailabilitySlot, Message, Gender } from '../types';
 import { 
   Plus, 
   Upload, 
@@ -40,6 +40,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { generateShiftsPDF } from '../services/pdfService';
+import CoordCalendar from './CoordCalendar'; // Importar CoordCalendar
 
 interface CoordProps {
   activeTab?: string;
@@ -190,6 +191,7 @@ const CoordinatorView: React.FC<CoordProps> = ({
     if (userModalMode === 'add') {
       const newUser: User = {
         id: `u-${Date.now()}`,
+        email: `${trimmedName.toLowerCase().replace(/\s/g, '')}@ppoc.com`, // Email ficticio
         display_name: trimmedName,
         role: userFormData.role,
         created_at: new Date().toISOString(),
@@ -428,42 +430,14 @@ const CoordinatorView: React.FC<CoordProps> = ({
           <button onClick={() => { if(confirm("¿Borrar todas las asignaciones?")) setAssignments([]); }} className="p-4 text-red-500 bg-red-50 hover:bg-red-100 rounded-2xl transition-all active:scale-90" title="Borrar todo"><Trash2 size={20} /></button>
         </div>
       </div>
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Día / Hora</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lugar</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voluntarios</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Borrar</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {[...shifts].sort((a,b) => a.date.localeCompare(b.date)).map(shift => {
-              const loc = locations.find(l => l.id === shift.location_id);
-              const shiftAssignments = assignments.filter(a => a.shift_id === shift.id);
-              return (
-                <tr key={shift.id} className="group hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-5 whitespace-nowrap"><p className="font-black text-slate-800 text-sm uppercase">{shift.date}</p><p className="text-[10px] font-black text-blue-500">{shift.start_time}</p></td>
-                  <td className="px-6 py-5"><span className="px-3 py-1.5 rounded-xl text-[10px] font-black text-white shadow-sm uppercase tracking-tighter" style={{backgroundColor: loc?.color_hex}}>{loc?.name}</span></td>
-                  <td className="px-6 py-5">
-                    <div className="flex flex-wrap gap-2">
-                      {shiftAssignments.map(a => (
-                        <div key={a.id} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-xl text-[9px] font-black uppercase text-slate-700 shadow-sm">
-                          {users.find(usr => usr.id === a.user_id)?.display_name.split(' ')[0]}
-                          <button onClick={() => setAssignments(p => p.filter(it => it.id !== a.id))} className="text-red-400 hover:text-red-600 transition-colors"><X size={10}/></button>
-                        </div>
-                      ))}
-                      <button onClick={() => setAssigningShiftId(shift.id)} className="flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase hover:bg-blue-100 transition-all border border-blue-100"><Plus size={12} /> Añadir</button>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5 text-right"><button onClick={() => handleDeleteShift(shift.id)} className="text-slate-300 hover:text-red-600 transition-all active:scale-90"><Trash2 size={20}/></button></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* Integración de CoordCalendar */}
+      <CoordCalendar 
+        locations={locations}
+        users={users}
+        shifts={shifts}
+        assignments={assignments}
+        setAssignments={setAssignments}
+      />
     </div>
   );
 

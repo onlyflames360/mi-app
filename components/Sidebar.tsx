@@ -1,12 +1,12 @@
 import React from 'react';
 import { Role, User, Notification } from '../types';
-import { NAV_ITEMS_COORD, NAV_ITEMS_USER } from '../constants.tsx'; // Updated import path
+import { NAV_ITEMS_COORD, NAV_ITEMS_USER } from '../constants.tsx';
 
 interface SidebarProps {
   currentView: string;
   onViewChange: (v: string) => void;
   user: User;
-  onRoleSwitch: (r: Role) => void;
+  onRoleSwitch: (r: Role) => void; // Mantener por si se necesita para otras demos, pero no se usará para Supabase
   unreadCount: number;
   onLogout: () => void;
 }
@@ -40,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
 
   const items = isCoord ? coordItems : userItems;
 
-  const avatarUrl = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.display_name}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+  const avatarUrl = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.display_name.split(' ')[0]}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 
   return (
     <aside className="w-20 md:w-64 bg-white border-r border-slate-200 h-screen flex flex-col sticky top-0 transition-all z-40">
@@ -108,19 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
           </div>
         )}
 
-        <div className="hidden md:block bg-slate-50 p-3 rounded-xl border border-slate-100">
-          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Cambiar Rol (Demo)</p>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => onRoleSwitch(Role.USER)}
-              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.role === Role.USER ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-            >User</button>
-            <button 
-              onClick={() => onRoleSwitch(Role.COORD)}
-              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.role === Role.COORD ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
-            >Coord</button>
-          </div>
-        </div>
+        {/* Eliminado el selector de rol de demostración */}
         
         <div className="flex items-center justify-between p-2 md:p-0">
           <div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => onViewChange('home')}>

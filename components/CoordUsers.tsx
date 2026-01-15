@@ -1,34 +1,42 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
 import { User, Role, Gender } from '../types';
+import { supabase } from '../services/supabase'; // Importar Supabase
 
 const CoordUsers: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(db.getUsers());
+  const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const [formData, setFormData] = useState({
-    nombre: '',
-    apellidos: '',
-    rol: 'usuario' as Role,
+    display_name: '',
+    email: '', // Añadido email
+    role: 'usuario' as Role,
     genero: 'femenino' as Gender,
     activo: true,
     avatarSeed: ''
   });
 
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const fetchedUsers = await db.getUsers();
+      setUsers(fetchedUsers);
+    };
+    fetchUsers();
+  }, []);
+
   const filtered = users.filter(u => 
-    `${u.nombre} ${u.apellidos}`.toLowerCase().includes(search.toLowerCase())
+    u.display_name.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleOpenCreate = () => {
     setEditingUser(null);
     setFormData({
-      nombre: '',
-      apellidos: '',
-      rol: 'usuario',
-      genero: 'femenino',
+      display_name: '',
+      email: '',
+      role: Role.USER,
+      genero: Gender.FEMENINO,
       activo: true,
       avatarSeed: ''
     });
@@ -38,43 +46,61 @@ const CoordUsers: React.FC = () => {
   const handleOpenEdit = (user: User) => {
     setEditingUser(user);
     setFormData({
-      nombre: user.nombre,
-      apellidos: user.apellidos,
-      rol: user.rol,
-      genero: user.genero,
-      activo: user.activo,
-      avatarSeed: user.avatarSeed || user.nombre
+      display_name: user.display_name,
+      email: user.email,
+      role: user.role,
+      genero: user.genero || Gender.FEMENINO,
+      activo: user.activo || true,
+      avatarSeed: user.avatarSeed || user.display_name.split(' ')[0]
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    if (id === 'admin-1') {
+      alert("No puedes eliminar la cuenta maestra del coordinador.");
+      return;
+    }
     if (window.confirm('¿Estás seguro de que deseas eliminar a este usuario?')) {
-      const updated = users.filter(u => u.id !== id);
-      db.setUsers(updated);
-      setUsers(updated);
+      await db.deleteUser(id); // Eliminar de Supabase
+      setUsers(prev => prev.filter(u => u.id !== id)); // Actualizar estado local
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    let updatedUsers: User[];
+    let updatedUsersList: User[];
 
     if (editingUser) {
-      updatedUsers = users.map(u => 
-        u.id === editingUser.id ? { ...u, ...formData } : u
-      );
-    } else {
-      const newUser: User = {
-        id: `u-${Date.now()}`,
-        ...formData,
-        avatarSeed: formData.avatarSeed || formData.nombre
+      const updatedUser: User = { 
+        ...editingUser, 
+        display_name: formData.display_name,
+        email: formData.email,
+        role: formData.role,
+        genero: formData.genero,
+        activo: formData.activo,
+        avatarSeed: formData.avatarSeed || formData.display_name.split(' ')[0]
       };
-      updatedUsers = [...users, newUser];
+      await db.updateUser(updatedUser); // Actualizar en Supabase
+      updatedUsersList = users.map(u => u.id === editingUser.id ? updatedUser : u);
+    } else {
+      // Para nuevos usuarios, creamos un ID y un email ficticio si no se proporciona
+      const newUserId = `u-${Date.now()}`;
+      const newUser: User = {
+        id: newUserId,
+        display_name: formData.display_name,
+        email: formData.email || `${formData.display_name.toLowerCase().replace(/\s/g, '')}@ppoc.com`,
+        role: formData.role,
+        genero: formData.genero,
+        activo: formData.activo,
+        avatarSeed: formData.avatarSeed || formData.display_name.split(' ')[0],
+        created_at: new Date().toISOString()
+      };
+      await db.setUsers([...users, newUser]); // Añadir a Supabase
+      updatedUsersList = [...users, newUser];
     }
 
-    db.setUsers(updatedUsers);
-    setUsers(updatedUsers);
+    setUsers(updatedUsersList); // Actualizar estado local
     setIsModalOpen(false);
   };
 
@@ -111,6 +137,7 @@ const CoordUsers: React.FC = () => {
           <thead className="bg-slate-50">
             <tr>
               <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nombre completo</th>
+              <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</th>
               <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol</th>
               <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
               <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Acciones</th>
@@ -118,7 +145,7 @@ const CoordUsers: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map(user => {
-              const avatar = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+              const avatar = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.display_name.split(' ')[0]}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
               return (
                 <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-4">
@@ -126,12 +153,15 @@ const CoordUsers: React.FC = () => {
                       <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-slate-200 shadow-sm">
                         <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
                       </div>
-                      <span className="text-sm font-bold text-slate-700">{user.nombre} {user.apellidos}</span>
+                      <span className="text-sm font-bold text-slate-700">{user.display_name}</span>
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.rol === 'coordinador' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {user.rol}
+                    <span className="text-xs font-bold text-slate-500">{user.email}</span>
+                  </td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${user.role === 'COORD' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {user.role}
                     </span>
                   </td>
                   <td className="p-4">
@@ -177,26 +207,26 @@ const CoordUsers: React.FC = () => {
 
             <form onSubmit={handleSave} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre Completo</label>
                 <input 
                   required
                   type="text" 
-                  value={formData.nombre}
-                  onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                  value={formData.display_name}
+                  onChange={(e) => setFormData({...formData, display_name: e.target.value})}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-50 outline-none transition-all"
-                  placeholder="Ej. Ana"
+                  placeholder="Ej. Ana Pérez García"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Apellidos</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
                 <input 
                   required
-                  type="text" 
-                  value={formData.apellidos}
-                  onChange={(e) => setFormData({...formData, apellidos: e.target.value})}
+                  type="email" 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-50 outline-none transition-all"
-                  placeholder="Ej. Pérez García"
+                  placeholder="Ej. ana.perez@example.com"
                 />
               </div>
 
@@ -215,12 +245,12 @@ const CoordUsers: React.FC = () => {
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rol</label>
                   <select 
-                    value={formData.rol}
-                    onChange={(e) => setFormData({...formData, rol: e.target.value as Role})}
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value as Role})}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-50 outline-none transition-all appearance-none"
                   >
-                    <option value="usuario">Usuario</option>
-                    <option value="coordinador">Coordinador</option>
+                    <option value={Role.USER}>Usuario</option>
+                    <option value={Role.COORD}>Coordinador</option>
                   </select>
                 </div>
               </div>

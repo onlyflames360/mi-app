@@ -1,80 +1,84 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../services/db';
-import { Shift, User } from '../types';
+import { Shift, User, Assignment, AssignmentStatus, Location } from '../types'; // Importar Assignment y Location
 
-const CoordCalendar: React.FC = () => {
-  const [shifts, setShifts] = useState<Shift[]>(db.getShifts());
-  const users = useMemo(() => db.getUsers(), []);
+interface CoordCalendarProps {
+  locations: Location[];
+  users: User[];
+  shifts: Shift[];
+  assignments: Assignment[];
+  setAssignments: React.Dispatch<React.SetStateAction<Assignment[]>>;
+}
+
+const CoordCalendar: React.FC<CoordCalendarProps> = ({ locations, users, shifts, assignments, setAssignments }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showAddModal, setShowAddModal] = useState<{lugar: string, franja: string, inicio: string, fin: string} | null>(null);
+  const [showAddModal, setShowAddModal] = useState<{lugar: string, franja: string, inicio: string, fin: string, shiftId: number} | null>(null);
   const [searchUser, setSearchUser] = useState('');
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setShifts(db.getShifts());
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
   const groupedShifts = useMemo(() => {
-    const dayShifts = shifts.filter(s => s.date === selectedDate); // Changed s.fecha to s.date
+    const dayShifts = shifts.filter(s => s.date === selectedDate);
     const groups: Record<string, Record<string, Shift[]>> = {};
 
     dayShifts.forEach(s => {
-      const locationName = users.find(u => u.id === s.location_id)?.display_name || 'Unknown Location'; // Assuming location_id maps to a user for now, this needs to be fixed.
+      const location = locations.find(l => l.id === s.location_id);
+      const locationName = location?.name || 'Unknown Location';
       if (!groups[locationName]) groups[locationName] = {};
-      const slotKey = `${s.start_time}-${s.end_time}`; // Changed s.inicio, s.fin to s.start_time, s.end_time
+      const slotKey = `${s.start_time}-${s.end_time}`;
       if (!groups[locationName][slotKey]) groups[locationName][slotKey] = [];
       groups[locationName][slotKey].push(s);
     });
 
     return groups;
-  }, [shifts, selectedDate, users]);
+  }, [shifts, selectedDate, locations]);
 
-  const allPlaces = ["LA BARBERA", "EL CENSAL", "LA CREUETA", "CENTRO SALUD", "Dr. ESQUERDO"];
+  const allPlaces = useMemo(() => locations.map(l => l.name), [locations]);
 
   const handleAddPerson = (userId: string) => {
     if (!showAddModal) return;
     
-    const newUserShift: Shift = {
-      id: Date.now(), // Changed to number
-      date: selectedDate,
-      location_id: users.find(u => u.display_name === showAddModal.lugar)?.id || 0, // This needs to be fixed to map to actual location IDs
-      start_time: showAddModal.inicio,
-      end_time: showAddModal.fin,
-      max_people: 2, // Default max people
-      notes: '',
-      // estado: 'confirmado', // Removed as Shift type doesn't have estado
-      // asignadoA: userId // Removed as Shift type doesn't have asignadoA
+    const alreadyAssigned = assignments.some(a => a.shift_id === showAddModal.shiftId && a.user_id === userId);
+    if (alreadyAssigned) {
+      alert("Este voluntario ya está asignado a este turno.");
+      return;
+    }
+
+    const newAssignment: Assignment = {
+      id: Date.now(),
+      shift_id: showAddModal.shiftId,
+      user_id: userId,
+      status: AssignmentStatus.CONFIRMED, // Asignación manual se considera confirmada
+      confirmed_at: new Date().toISOString()
     };
 
-    // This logic needs to be updated to add an Assignment, not a Shift directly
-    // For now, I'll just add a placeholder to avoid breaking the app
-    console.warn("Shift assignment logic needs to be updated to use Assignment type.");
-
-    const updated = [...db.getShifts(), newUserShift];
-    db.setShifts(updated);
-    setShifts(updated);
+    setAssignments(prev => [...prev, newAssignment]);
     setShowAddModal(null);
     setSearchUser('');
   };
 
-  const removeShift = (id: number) => { // Changed id type to number
-    const updated = shifts.filter(s => s.id !== id);
-    db.setShifts(updated);
-    setShifts(updated);
+  const handleRemoveAssignment = (assignmentId: number) => {
+    setAssignments(prev => prev.filter(a => a.id !== assignmentId));
   };
 
-  const renderShiftUsers = (groupShifts: Shift[]) => {
-    // This logic needs to be updated to use Assignments, not Shifts directly
-    // For now, I'll just return null to avoid breaking the app
-    console.warn("Shift user rendering logic needs to be updated to use Assignment type.");
-    return null;
+  const renderShiftAssignments = (shiftId: number) => {
+    const shiftAssignments = assignments.filter(a => a.shift_id === shiftId);
+    return (
+      <div className="flex flex-wrap gap-2">
+        {shiftAssignments.map(a => {
+          const user = users.find(u => u.id === a.user_id);
+          return (
+            <div key={a.id} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-xl text-[9px] font-black uppercase text-slate-700 shadow-sm">
+              {user?.display_name.split(' ')[0]}
+              <button onClick={() => handleRemoveAssignment(a.id)} className="text-red-400 hover:text-red-600 transition-colors"><i className="fa-solid fa-xmark text-[8px]"></i></button>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const filteredUsers = users.filter(u => 
-    u.role === 'USER' && // Changed rol to role
-    u.display_name.toLowerCase().includes(searchUser.toLowerCase()) // Changed nombre, apellidos to display_name
+    u.role === Role.USER &&
+    u.display_name.toLowerCase().includes(searchUser.toLowerCase())
   );
 
   return (
@@ -98,12 +102,12 @@ const CoordCalendar: React.FC = () => {
           const dayOfWeek = dateObj.getDay();
           
           let slotsVisibles: any[] = [];
-          if (dayOfWeek === 2 || dayOfWeek === 4) {
+          if (dayOfWeek === 2 || dayOfWeek === 4) { // Martes o Jueves
             slotsVisibles = [
               { id: 'm', label: 'Mañana', inicio: '10:30', fin: '12:30', type: 'manana' },
               { id: 't', label: 'Tarde', inicio: '17:30', fin: '19:30', type: 'tarde' }
             ];
-          } else if (dayOfWeek === 6) {
+          } else if (dayOfWeek === 6) { // Sábado
             slotsVisibles = [
               { id: 's1', label: 'Sábado (1)', inicio: '10:30', fin: '12:00', type: 'sabado' },
               { id: 's2', label: 'Sábado (2)', inicio: '12:00', fin: '13:30', type: 'sabado' }
@@ -124,8 +128,12 @@ const CoordCalendar: React.FC = () => {
               <div className="p-4 flex-1 space-y-6">
                 {slotsVisibles.map(slot => {
                   const slotKey = `${slot.inicio}-${slot.fin}`;
-                  const currentShifts = (groupedShifts[lugar] && groupedShifts[lugar][slotKey]) || [];
-                  const activeCount = currentShifts.filter(s => !s.isCancelledByAdmin).length; // Using isCancelledByAdmin from Shift type
+                  const currentShiftsForSlot = (groupedShifts[lugar] && groupedShifts[lugar][slotKey]) || [];
+                  const firstShiftInSlot = currentShiftsForSlot[0]; // Asumimos que solo hay un Shift por slot/lugar/fecha
+
+                  if (!firstShiftInSlot) return null; // Si no hay turno definido para este slot, no mostrar
+
+                  const activeCount = assignments.filter(a => a.shift_id === firstShiftInSlot.id).length;
 
                   return (
                     <div key={slot.id} className="space-y-2">
@@ -137,9 +145,9 @@ const CoordCalendar: React.FC = () => {
                       </div>
 
                       <div className="p-2 rounded-2xl min-h-[80px] border border-dashed bg-slate-50/50 border-slate-200">
-                        {renderShiftUsers(currentShifts)}
+                        {renderShiftAssignments(firstShiftInSlot.id)}
                         <button 
-                          onClick={() => setShowAddModal({ lugar, franja: slot.type, inicio: slot.inicio, fin: slot.fin })}
+                          onClick={() => setShowAddModal({ lugar, franja: slot.type, inicio: slot.inicio, fin: slot.fin, shiftId: firstShiftInSlot.id })}
                           className="w-full py-2 mt-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all flex items-center justify-center gap-2"
                         >
                           <i className="fa-solid fa-plus-circle"></i>
@@ -190,7 +198,7 @@ const CoordCalendar: React.FC = () => {
                     className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-left group"
                   >
                     <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                      <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.display_name}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="av" className="w-full h-full object-cover" />
+                      <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.display_name.split(' ')[0]}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="av" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{u.display_name}</p>

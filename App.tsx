@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message, Gender } from './types';
-import AuthView from './components/AuthView'; // Cambiado de Login a AuthView
+import AuthView from './components/AuthView';
 import Layout from './components/Layout';
 import CoordinatorView from './components/CoordinatorView';
 import UserView from './components/UserView';
 import { SEED_DATA } from './constants.tsx';
 import { db } from './services/db';
-// Eliminada la importación de Supabase
+import { supabase } from './services/supabase'; // Importar el cliente de Supabase
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>([]); // Ahora se gestionará desde Supabase
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -20,83 +20,130 @@ const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMonth, setCurrentMonth] = useState('2026-01');
   const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
-  // Eliminado loadingAuth
+  const [loadingAuth, setLoadingAuth] = useState(true); // Nuevo estado de carga para auth
 
-  // Initialize data from SEED_DATA
-  useEffect(() => {
-    setLocations(SEED_DATA.locations.map((l, i) => ({ id: i + 1, ...l })));
+  // Función para sembrar usuarios en Supabase si la tabla está vacía
+  const seedSupabaseUsers = useCallback(async () => {
+    const { data: existingUsers, error } = await supabase.from('users').select('id');
+    if (error) {
+      console.error('Error checking existing users in Supabase:', error);
+      return;
+    }
 
-    const initialUsers: User[] = [
-      { id: 'admin-1', email: 'admin@ppoc.com', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO },
-      ...SEED_DATA.users.map((name, i) => {
-        const firstName = name.split(' ')[0];
-        const isFemale = ["ANA", "ROSA", "DOLY", "MAITE", "OTILIA", "CONCHI", "ARACELI", "JUANITA", "ANDREA", "TOÑI", "PAULA", "ADELA", "JACQUELINE", "MANUELA", "PAQUI", "DESI", "PALOMA", "BLANCA", "ANABEL", "RAQUEL", "MARI", "ABIGAIL", "MARTA", "MÍRIAM", "MÓNICA", "LIA", "JANINE", "PATTY"].includes(firstName.toUpperCase());
-        return {
-          id: `u-${i}`,
-          email: `${firstName.toLowerCase()}@ppoc.com`, // Email ficticio para usuarios seed
-          display_name: name.toUpperCase(),
-          role: Role.USER,
-          created_at: new Date().toISOString(),
-          activo: true,
-          genero: isFemale ? Gender.FEMENINO : Gender.MASCULINO,
-          avatarSeed: firstName
-        };
-      })
-    ];
-    setUsers(initialUsers);
-    db.setUsers(initialUsers); // Ensure db is updated with initial users
-
-    const initialShifts: Shift[] = [];
-    const initialAssignments: Assignment[] = [];
-
-    SEED_DATA.raw_shifts.forEach((raw, shiftIdx) => {
-      const locId = SEED_DATA.locations.findIndex(l => l.name === raw.loc) + 1;
-      const [start, end] = raw.time.split('-');
-      
-      const newShift: Shift = {
-        id: shiftIdx + 1,
-        date: raw.date,
-        start_time: start,
-        end_time: end,
-        location_id: locId,
-        max_people: raw.people.length,
-        notes: ''
-      };
-      initialShifts.push(newShift);
-
-      raw.people.forEach((pName) => {
-        const foundUser = initialUsers.find(u => u.display_name.toUpperCase() === pName.toUpperCase());
-        if (foundUser) {
-          initialAssignments.push({
-            id: initialAssignments.length + 1,
-            shift_id: newShift.id,
-            user_id: foundUser.id,
-            status: AssignmentStatus.CONFIRMED
-          });
-        }
-      });
-    });
-
-    setShifts(initialShifts);
-    setAssignments(initialAssignments);
-    
-    // Load local availabilities if any
-    const storedAvails = localStorage.getItem('ppoc_availabilities');
-    if (storedAvails) setAvailabilities(JSON.parse(storedAvails));
-
-    // Cargar usuario actual desde localStorage si existe
-    const currentUserId = db.getCurrentUserId();
-    if (currentUserId) {
-      const storedUser = initialUsers.find(u => u.id === currentUserId);
-      if (storedUser) {
-        setUser(storedUser);
-      }
+    if (existingUsers.length === 0) {
+      console.log('Seeding initial users to Supabase...');
+      const initialUsers: User[] = [
+        { id: 'admin-1', email: 'admin@ppoc.com', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO, avatarSeed: 'admin-1' },
+        ...SEED_DATA.users.map((name, i) => {
+          const firstName = name.split(' ')[0];
+          const isFemale = ["ANA", "ROSA", "DOLY", "MAITE", "OTILIA", "CONCHI", "ARACELI", "JUANITA", "ANDREA", "TOÑI", "PAULA", "ADELA", "JACQUELINE", "MANUELA", "PAQUI", "DESI", "PALOMA", "BLANCA", "ANABEL", "RAQUEL", "MARI", "ABIGAIL", "MARTA", "MÍRIAM", "MÓNICA", "LIA", "JANINE", "PATTY"].includes(firstName.toUpperCase());
+          return {
+            id: `u-${i}`,
+            email: `${firstName.toLowerCase().replace(/\s/g, '')}${i}@ppoc.com`, // Email ficticio
+            display_name: name.toUpperCase(),
+            role: Role.USER,
+            created_at: new Date().toISOString(),
+            activo: true,
+            genero: isFemale ? Gender.FEMENINO : Gender.MASCULINO,
+            avatarSeed: firstName
+          };
+        })
+      ];
+      await db.setUsers(initialUsers); // Usa db.setUsers que ahora interactúa con Supabase
+      setUsers(initialUsers);
+    } else {
+      const fetchedUsers = await db.getUsers();
+      setUsers(fetchedUsers);
     }
   }, []);
 
-  // Eliminado el Supabase Auth State Listener
+  // Inicializar datos y escuchar cambios de autenticación de Supabase
+  useEffect(() => {
+    const initializeApp = async () => {
+      setLoadingAuth(true);
+      await seedSupabaseUsers(); // Asegura que los usuarios estén en Supabase
 
-  // Save availabilities to local storage when changed
+      setLocations(SEED_DATA.locations.map((l, i) => ({ id: i + 1, ...l })));
+
+      const initialShifts: Shift[] = [];
+      const initialAssignments: Assignment[] = [];
+
+      SEED_DATA.raw_shifts.forEach((raw, shiftIdx) => {
+        const locId = SEED_DATA.locations.findIndex(l => l.name === raw.loc) + 1;
+        const [start, end] = raw.time.split('-');
+        
+        const newShift: Shift = {
+          id: shiftIdx + 1,
+          date: raw.date,
+          start_time: start,
+          end_time: end,
+          location_id: locId,
+          max_people: raw.people.length,
+          notes: ''
+        };
+        initialShifts.push(newShift);
+
+        raw.people.forEach((pName) => {
+          const foundUser = users.find(u => u.display_name.toUpperCase() === pName.toUpperCase());
+          if (foundUser) {
+            initialAssignments.push({
+              id: initialAssignments.length + 1,
+              shift_id: newShift.id,
+              user_id: foundUser.id,
+              status: AssignmentStatus.CONFIRMED
+            });
+          }
+        });
+      });
+
+      setShifts(initialShifts);
+      setAssignments(initialAssignments);
+      
+      const storedAvails = localStorage.getItem('ppoc_availabilities');
+      if (storedAvails) setAvailabilities(JSON.parse(storedAvails));
+
+      // Escuchar cambios de autenticación de Supabase
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session) {
+          const { data: profile, error } = await supabase.from('users').select('*').eq('id', session.user.id).single();
+          if (error) {
+            console.error('Error fetching user profile:', error);
+            setUser(null);
+          } else {
+            setUser(profile as User);
+            db.setCurrentUserId(profile.id);
+          }
+        } else {
+          setUser(null);
+          db.logout();
+        }
+        setLoadingAuth(false);
+      });
+
+      // Intentar obtener la sesión actual al cargar
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile, error } = await supabase.from('users').select('*').eq('id', session.user.id).single();
+        if (error) {
+          console.error('Error fetching user profile on initial load:', error);
+          setUser(null);
+        } else {
+          setUser(profile as User);
+          db.setCurrentUserId(profile.id);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoadingAuth(false);
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    };
+
+    initializeApp();
+  }, [seedSupabaseUsers, users]); // Añadir 'users' como dependencia para que se re-ejecute si los usuarios cambian
+
   useEffect(() => {
     if (availabilities.length > 0) {
       localStorage.setItem('ppoc_availabilities', JSON.stringify(availabilities));
@@ -187,40 +234,60 @@ const App: React.FC = () => {
     }));
   }, []);
 
-  // Nueva función para el login de voluntarios (por nombre)
-  const handleVolunteerAuth = useCallback((userId: string) => {
-    const foundUser = users.find(u => u.id === userId);
-    if (foundUser) {
-      setUser(foundUser);
-      db.setCurrentUserId(foundUser.id);
+  // Login de voluntarios (simulado para Supabase, manteniendo la interfaz)
+  const handleVolunteerAuth = useCallback(async (userId: string) => {
+    const { data, error } = await supabase.from('users').select('*').eq('id', userId).single();
+    if (error) {
+      console.error('Error fetching volunteer profile:', error);
+      alert('Usuario no encontrado o error al cargar el perfil.');
+      return;
+    }
+    if (data) {
+      setUser(data as User);
+      db.setCurrentUserId(data.id);
     } else {
       alert('Usuario no encontrado.');
     }
-  }, [users]);
+  }, []);
 
-  // Nueva función para el login de administrador (por código)
-  const handleAdminAuth = useCallback((code: string) => {
+  // Login de administrador (autenticación real de Supabase)
+  const handleAdminAuth = useCallback(async (code: string) => {
     if (code === '1914') {
-      const adminUser: User = {
-        id: 'admin-1',
-        email: 'admin@ppoc.com',
-        display_name: 'COORDINADOR PRINCIPAL',
-        role: Role.COORD,
-        created_at: new Date().toISOString(),
-        activo: true,
-        genero: Gender.MASCULINO,
-        avatarSeed: 'admin-1',
-      };
-      setUser(adminUser);
-      db.setCurrentUserId(adminUser.id);
+      setLoadingAuth(true);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'admin@ppoc.com', // Email predefinido para el admin
+        password: 'password123' // Contraseña predefinida para el admin (debería ser segura en producción)
+      });
+
+      if (error) {
+        console.error('Error logging in admin:', error);
+        alert('Código de administrador incorrecto o error de autenticación.');
+      } else if (data.user) {
+        const { data: profile, error: profileError } = await supabase.from('users').select('*').eq('id', data.user.id).single();
+        if (profileError) {
+          console.error('Error fetching admin profile:', profileError);
+          alert('Error al cargar el perfil del administrador.');
+          setUser(null);
+        } else {
+          setUser(profile as User);
+          db.setCurrentUserId(profile.id);
+        }
+      }
+      setLoadingAuth(false);
     } else {
       alert('Código de administrador incorrecto.');
     }
   }, []);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    setLoadingAuth(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error logging out:', error);
+    }
     setUser(null);
     db.logout();
+    setLoadingAuth(false);
   }, []);
 
   const currentUserNotifications = useMemo(() => {
@@ -366,7 +433,16 @@ const App: React.FC = () => {
     }
   }, [user, messages]);
 
-  // Eliminado el spinner de carga de autenticación
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-lg font-bold">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return <AuthView users={users} onAdminAuth={handleAdminAuth} onVolunteerAuth={handleVolunteerAuth} />;
