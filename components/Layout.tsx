@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { User, Role, Notification } from '../types';
+import { User, Role, Notification } from '../types'; // Changed AppNotification to Notification
 import { NAV_ITEMS_COORD, NAV_ITEMS_USER } from '../constants';
 import { LogOut, Bell, X, Trash2, CheckCheck } from 'lucide-react';
 

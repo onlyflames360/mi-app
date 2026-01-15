@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message } from './types';
+import { Role, User, Location, Shift, Assignment, Notification, AssignmentStatus, Alert, AlertType, Availability, AvailabilitySlot, Message, Gender } from './types'; // Added Gender
 import Login from './components/Login';
 import Layout from './components/Layout';
 import CoordinatorView from './components/CoordinatorView';
 import UserView from './components/UserView';
 import { SEED_DATA } from './constants';
+import { db } from './services/db'; // Import db for consistency
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -27,15 +27,23 @@ const App: React.FC = () => {
     setLocations(SEED_DATA.locations.map((l, i) => ({ id: i + 1, ...l })));
 
     const initialUsers: User[] = [
-      { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString() },
-      ...SEED_DATA.users.map((name, i) => ({
-        id: `u-${i}`,
-        display_name: name.toUpperCase(),
-        role: Role.USER,
-        created_at: new Date().toISOString()
-      }))
+      { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO },
+      ...SEED_DATA.users.map((name, i) => {
+        const firstName = name.split(' ')[0];
+        const isFemale = ["ANA", "ROSA", "DOLY", "MAITE", "OTILIA", "CONCHI", "ARACELI", "JUANITA", "ANDREA", "TOÑI", "PAULA", "ADELA", "JACQUELINE", "MANUELA", "PAQUI", "DESI", "PALOMA", "BLANCA", "ANABEL", "RAQUEL", "MARI", "ABIGAIL", "MARTA", "MÍRIAM", "MÓNICA", "LIA", "JANINE", "PATTY"].includes(firstName.toUpperCase());
+        return {
+          id: `u-${i}`,
+          display_name: name.toUpperCase(),
+          role: Role.USER,
+          created_at: new Date().toISOString(),
+          activo: true,
+          genero: isFemale ? Gender.FEMENINO : Gender.MASCULINO,
+          avatarSeed: firstName
+        };
+      })
     ];
     setUsers(initialUsers);
+    db.setUsers(initialUsers); // Ensure db is updated with initial users
 
     if (storedUser) {
       const parsed = JSON.parse(storedUser);
@@ -178,7 +186,7 @@ const App: React.FC = () => {
   const handleLogin = (authenticatedUser: User) => {
     const normalizedName = authenticatedUser.display_name.toUpperCase().trim();
     if (normalizedName === '1914') {
-      const admin = { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString() };
+      const admin = { id: 'admin-1', display_name: 'COORDINADOR PRINCIPAL', role: Role.COORD, created_at: new Date().toISOString(), activo: true, genero: Gender.MASCULINO };
       setUser(admin);
       localStorage.setItem('ppoc_user', JSON.stringify(admin));
       return;
@@ -189,9 +197,20 @@ const App: React.FC = () => {
       setUser(registered);
       localStorage.setItem('ppoc_user', JSON.stringify(registered));
     } else {
-      setUser(authenticatedUser);
-      setUsers(prev => [...prev, authenticatedUser]);
-      localStorage.setItem('ppoc_user', JSON.stringify(authenticatedUser));
+      // If not registered, create a new user with default values
+      const newUser: User = {
+        id: `u-${Date.now()}`,
+        display_name: normalizedName,
+        role: Role.USER,
+        created_at: new Date().toISOString(),
+        activo: true,
+        genero: Gender.MASCULINO, // Default gender, could be improved
+        avatarSeed: normalizedName.split(' ')[0] // Default avatar seed
+      };
+      setUser(newUser);
+      setUsers(prev => [...prev, newUser]);
+      db.setUsers([...users, newUser]); // Update db with new user
+      localStorage.setItem('ppoc_user', JSON.stringify(newUser));
     }
   };
 

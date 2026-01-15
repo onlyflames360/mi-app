@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { User, Location, Shift, Assignment, AssignmentStatus, AvailabilitySlot, Alert, Notification, Message, Role, Availability } from '../types';
 import { MOTIVATIONAL_PHRASES } from '../constants';

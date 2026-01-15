@@ -1,8 +1,5 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, Location, Shift, Assignment, Role, AssignmentStatus, Alert, Availability, AvailabilitySlot, Message } from '../types';
-// Fix: Import generateShiftsPDF to use it in handleShare for exporting the shift plan
-import { generateShiftsPDF } from '../services/pdfService';
+import { User, Location, Shift, Assignment, Role, AssignmentStatus, Alert, Availability, AvailabilitySlot, Message, Gender } from '../types'; // Added Gender
 import { 
   Plus, 
   Upload, 
@@ -42,6 +39,7 @@ import {
   CheckCircle2,
   CalendarDays
 } from 'lucide-react';
+import { generateShiftsPDF } from '../services/pdfService';
 
 interface CoordProps {
   activeTab?: string;
@@ -91,7 +89,7 @@ const CoordinatorView: React.FC<CoordProps> = ({
   const [showUserModal, setShowUserModal] = useState(false);
   const [userModalMode, setUserModalMode] = useState<'add' | 'edit'>('add');
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [userFormData, setUserFormData] = useState({ display_name: '', role: Role.USER });
+  const [userFormData, setUserFormData] = useState({ display_name: '', role: Role.USER, genero: Gender.MASCULINO, activo: true }); // Added genero, activo
 
   // Broadcast State
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -114,7 +112,7 @@ const CoordinatorView: React.FC<CoordProps> = ({
   // Volunteers who have submitted availability
   const usersWithAvailability = useMemo(() => {
     const userIds = new Set(availabilities.map(a => a.user_id));
-    return users.filter(u => userIds.has(u.id));
+    return users.filter(u => u.role === Role.USER && userIds.has(u.id));
   }, [users, availabilities]);
 
   // Statistics Calculations
@@ -171,14 +169,14 @@ const CoordinatorView: React.FC<CoordProps> = ({
   const openAddUserModal = () => {
     setUserModalMode('add');
     setEditingUser(null);
-    setUserFormData({ display_name: '', role: Role.USER });
+    setUserFormData({ display_name: '', role: Role.USER, genero: Gender.MASCULINO, activo: true });
     setShowUserModal(true);
   };
 
   const openEditUserModal = (u: User) => {
     setUserModalMode('edit');
     setEditingUser(u);
-    setUserFormData({ display_name: u.display_name, role: u.role });
+    setUserFormData({ display_name: u.display_name, role: u.role, genero: u.genero || Gender.MASCULINO, activo: u.activo || true });
     setShowUserModal(true);
   };
 
@@ -194,12 +192,15 @@ const CoordinatorView: React.FC<CoordProps> = ({
         id: `u-${Date.now()}`,
         display_name: trimmedName,
         role: userFormData.role,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        genero: userFormData.genero,
+        activo: userFormData.activo,
+        avatarSeed: trimmedName.split(' ')[0]
       };
       setUsers(prev => [...prev, newUser]);
       addNotification("Nuevo Usuario", `${newUser.display_name} se ha añadido a la lista.`);
     } else if (editingUser) {
-      setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, display_name: trimmedName, role: userFormData.role } : u));
+      setUsers(prev => prev.map(u => u.id === editingUser.id ? { ...u, display_name: trimmedName, role: userFormData.role, genero: userFormData.genero, activo: userFormData.activo } : u));
       addNotification("Cambios Guardados", `Se han actualizado los datos de ${trimmedName}.`);
     }
     setShowUserModal(false);
@@ -392,6 +393,23 @@ const CoordinatorView: React.FC<CoordProps> = ({
                   <option value={Role.USER}>VOLUNTARIO ESTÁNDAR</option>
                   <option value={Role.COORD}>COORDINADOR (ADMIN)</option>
                 </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 ml-1 block">Género</label>
+                <select value={userFormData.genero} onChange={e => setUserFormData({...userFormData, genero: e.target.value as Gender})} className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none font-black uppercase text-xs focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all">
+                  <option value={Gender.MASCULINO}>MASCULINO</option>
+                  <option value={Gender.FEMENINO}>FEMENINO</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <input 
+                  type="checkbox" 
+                  id="activo"
+                  checked={userFormData.activo}
+                  onChange={(e) => setUserFormData({...userFormData, activo: e.target.checked})}
+                  className="w-5 h-5 rounded-lg border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="activo" className="text-sm font-bold text-slate-700 cursor-pointer">Usuario activo en el sistema</label>
               </div>
               <button onClick={handleSaveUser} className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl mt-4 active:scale-95 uppercase text-xs tracking-widest shadow-xl transition-all hover:bg-blue-600">Guardar Información</button>
             </div>

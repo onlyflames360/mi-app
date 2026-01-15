@@ -1,31 +1,33 @@
-
 import React from 'react';
 import { ViewType } from '../types';
 
 interface HeaderProps {
-  currentView: ViewType;
+  // currentView: ViewType; // Removed as it's no longer used directly for titles
   unreadCount?: number;
   onBellClick?: () => void;
   isOnline?: boolean;
   isSaving?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentView, unreadCount = 0, onBellClick, isOnline = true, isSaving = false }) => {
-  const titles: Record<ViewType, string> = {
-    register: 'Inscripción de Voluntarios',
-    planning: 'Planilla de Turnos PPOC',
-    personal: 'Mis Citas Personales',
-    calendar: 'Calendario de Turnos',
-    users: 'Gestión de Voluntarios',
-    stats: 'Rendimiento y Cobertura',
-    notifications: 'Centro de Avisos',
-    auth: 'Acceso al Sistema'
-  };
+const Header: React.FC<HeaderProps> = ({ unreadCount = 0, onBellClick, isOnline = true, isSaving = false }) => {
+  // Removed titles as currentView is no longer passed
+  // const titles: Record<ViewType, string> = {
+  //   register: 'Inscripción de Voluntarios',
+  //   planning: 'Planilla de Turnos PPOC',
+  //   personal: 'Mis Citas Personales',
+  //   calendar: 'Calendario de Turnos',
+  //   users: 'Gestión de Voluntarios',
+  //   stats: 'Rendimiento y Cobertura',
+  //   notifications: 'Centro de Avisos',
+  //   auth: 'Acceso al Sistema'
+  // };
 
   return (
     <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 sm:px-8 shrink-0 no-print">
       <div className="flex items-center gap-3">
-        <h1 className="text-sm sm:text-xl font-bold text-slate-800 truncate mr-2">{titles[currentView]}</h1>
+        {/* Removed dynamic title as currentView is no longer passed */}
+        {/* <h1 className="text-sm sm:text-xl font-bold text-slate-800 truncate mr-2">{titles[currentView]}</h1> */}
+        <h1 className="text-sm sm:text-xl font-bold text-slate-800 truncate mr-2">PPOC - Gestión</h1> {/* Static title */}
         {isSaving && (
           <div className="hidden md:flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md animate-pulse">
             <i className="fa-solid fa-cloud-arrow-up text-[10px]"></i>

@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { User, Role } from '../types';
+import { User, Role, Gender } from '../types'; // Added Gender
 import { LucideIcon, Fingerprint as FingerprintIcon, LogIn as LogInIcon, UserPlus as UserPlusIcon, ShieldCheck as ShieldCheckIcon, User as UserIconLucide, AlertCircle as AlertCircleIcon, Check as CheckIcon, X as XIcon } from 'lucide-react';
 
 interface LoginProps {
@@ -57,6 +56,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, registeredUsers }) => {
     let role = Role.USER;
     let displayName = upperName;
     let userId = "";
+    let genero = Gender.MASCULINO; // Default gender
+    let activo = true; // Default active status
+    let avatarSeed = upperName.split(' ')[0]; // Default avatar seed
 
     if (upperName === '1914') {
       role = Role.COORD;
@@ -66,13 +68,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, registeredUsers }) => {
       const existing = registeredUsers.find(u => u.display_name.toUpperCase() === upperName);
       role = existing?.role || Role.USER;
       userId = existing?.id || Math.random().toString(36).substr(2, 9);
+      genero = existing?.genero || Gender.MASCULINO;
+      activo = existing?.activo || true;
+      avatarSeed = existing?.avatarSeed || upperName.split(' ')[0];
     }
 
     const mockUser: User = {
       id: userId,
       display_name: displayName,
       role: role,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      genero: genero,
+      activo: activo,
+      avatarSeed: avatarSeed
     };
     
     setLoading(false);

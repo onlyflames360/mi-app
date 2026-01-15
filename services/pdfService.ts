@@ -1,4 +1,3 @@
-
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { Shift, Location, User, Assignment } from '../types';
@@ -22,7 +21,7 @@ export const generateShiftsPDF = (
       const shiftAssignments = assignments.filter(a => a.shift_id === shift.id);
       const assignedUserNames = shiftAssignments.map(a => {
         const user = users.find(u => u.id === a.user_id);
-        return user?.display_name || 'Desconocido';
+        return user?.display_name || 'Desconocido'; // Changed user.display_name
       }).join(', ');
       
       return [
