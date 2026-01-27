@@ -1,84 +1,125 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '../services/db';
-import { Shift, User, Assignment, AssignmentStatus, Location } from '../types'; // Importar Assignment y Location
+import { Shift, User } from '../types';
 
-interface CoordCalendarProps {
-  locations: Location[];
-  users: User[];
-  shifts: Shift[];
-  assignments: Assignment[];
-  setAssignments: React.Dispatch<React.SetStateAction<Assignment[]>>;
-}
-
-const CoordCalendar: React.FC<CoordCalendarProps> = ({ locations, users, shifts, assignments, setAssignments }) => {
+const CoordCalendar: React.FC = () => {
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showAddModal, setShowAddModal] = useState<{lugar: string, franja: string, inicio: string, fin: string, shiftId: number} | null>(null);
+  const [showAddModal, setShowAddModal] = useState<{lugar: string, franja: string, inicio: string, fin: string} | null>(null);
   const [searchUser, setSearchUser] = useState('');
 
+  useEffect(() => {
+    const fetchData = async () => {
+      const fetchedShifts = await db.getShifts();
+      const fetchedUsers = await db.getUsers();
+      setShifts(fetchedShifts);
+      setUsers(fetchedUsers);
+    };
+    fetchData();
+    const interval = setInterval(async () => {
+      const updatedShifts = await db.getShifts();
+      setShifts(updatedShifts);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   const groupedShifts = useMemo(() => {
-    const dayShifts = shifts.filter(s => s.date === selectedDate);
+    const dayShifts = shifts.filter(s => s.fecha === selectedDate);
     const groups: Record<string, Record<string, Shift[]>> = {};
 
     dayShifts.forEach(s => {
-      const location = locations.find(l => l.id === s.location_id);
-      const locationName = location?.name || 'Unknown Location';
-      if (!groups[locationName]) groups[locationName] = {};
-      const slotKey = `${s.start_time}-${s.end_time}`;
-      if (!groups[locationName][slotKey]) groups[locationName][slotKey] = [];
-      groups[locationName][slotKey].push(s);
+      if (!groups[s.lugar]) groups[s.lugar] = {};
+      const slotKey = `${s.inicio}-${s.fin}`;
+      if (!groups[s.lugar][slotKey]) groups[s.lugar][slotKey] = [];
+      groups[s.lugar][slotKey].push(s);
     });
 
     return groups;
-  }, [shifts, selectedDate, locations]);
+  }, [shifts, selectedDate]);
 
-  const allPlaces = useMemo(() => locations.map(l => l.name), [locations]);
+  const allPlaces = ["LA BARBERA", "EL CENSAL", "LA CREUETA", "CENTRO SALUD", "Dr. ESQUERDO"];
 
-  const handleAddPerson = (userId: string) => {
+  const handleAddPerson = async (userId: string) => {
     if (!showAddModal) return;
     
-    const alreadyAssigned = assignments.some(a => a.shift_id === showAddModal.shiftId && a.user_id === userId);
-    if (alreadyAssigned) {
-      alert("Este voluntario ya está asignado a este turno.");
-      return;
-    }
-
-    const newAssignment: Assignment = {
-      id: Date.now(),
-      shift_id: showAddModal.shiftId,
-      user_id: userId,
-      status: AssignmentStatus.CONFIRMED, // Asignación manual se considera confirmada
-      confirmed_at: new Date().toISOString()
+    const newUserShift: Shift = {
+      id: `s-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      fecha: selectedDate,
+      lugar: showAddModal.lugar,
+      franja: showAddModal.franja as any,
+      inicio: showAddModal.inicio,
+      fin: showAddModal.fin,
+      estado: 'confirmado',
+      asignadoA: userId
     };
 
-    setAssignments(prev => [...prev, newAssignment]);
+    const currentShifts = await db.getShifts();
+    const updated = [...currentShifts, newUserShift];
+    await db.setShifts(updated);
+    setShifts(updated);
     setShowAddModal(null);
     setSearchUser('');
   };
 
-  const handleRemoveAssignment = (assignmentId: number) => {
-    setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+  const removeShift = async (id: string) => {
+    const currentShifts = await db.getShifts();
+    const updated = currentShifts.filter(s => s.id !== id);
+    await db.setShifts(updated);
+    setShifts(updated);
   };
 
-  const renderShiftAssignments = (shiftId: number) => {
-    const shiftAssignments = assignments.filter(a => a.shift_id === shiftId);
-    return (
-      <div className="flex flex-wrap gap-2">
-        {shiftAssignments.map(a => {
-          const user = users.find(u => u.id === a.user_id);
-          return (
-            <div key={a.id} className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-xl text-[9px] font-black uppercase text-slate-700 shadow-sm">
-              {user?.display_name.split(' ')[0]}
-              <button onClick={() => handleRemoveAssignment(a.id)} className="text-red-400 hover:text-red-600 transition-colors"><i className="fa-solid fa-xmark text-[8px]"></i></button>
+  const renderShiftUsers = (groupShifts: Shift[]) => {
+    const activeShifts = groupShifts.filter(s => s.estado !== 'cancelado');
+    const usersInShift = activeShifts.map(s => users.find(u => u.id === s.asignadoA)).filter(Boolean) as User[];
+    
+    const surnameCounts: Record<string, number> = {};
+    usersInShift.forEach(u => {
+      if (u.apellidos) {
+        surnameCounts[u.apellidos] = (surnameCounts[u.apellidos] || 0) + 1;
+      }
+    });
+
+    return groupShifts.map(s => {
+      const u = users.find(user => user.id === s.asignadoA);
+      if (!u || s.estado === 'cancelado') return null;
+      
+      const isCouple = u.apellidos && surnameCounts[u.apellidos] > 1;
+      const avatar = u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+
+      return (
+        <div 
+          key={s.id} 
+          className={`flex items-center justify-between p-2 rounded-xl mb-1 border transition-all ${
+            isCouple ? 'bg-rose-50 border-rose-100 ring-1 ring-rose-200' : 'bg-white border-slate-100 shadow-sm'
+          }`}
+        >
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div className="w-7 h-7 rounded-full bg-white border border-slate-200 overflow-hidden shrink-0">
+              <img src={avatar} alt="av" className="w-full h-full object-cover" />
             </div>
-          );
-        })}
-      </div>
-    );
+            <div className="truncate">
+              <p className="text-[10px] font-black leading-tight truncate text-slate-700">
+                {u.nombre} {u.apellidos}
+              </p>
+              {isCouple && <p className="text-[8px] font-bold text-rose-500 uppercase tracking-tighter">Pareja</p>}
+            </div>
+          </div>
+          <button 
+            onClick={() => removeShift(s.id)}
+            className="w-5 h-5 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors shrink-0"
+          >
+            <i className="fa-solid fa-xmark text-[10px]"></i>
+          </button>
+        </div>
+      );
+    });
   };
 
   const filteredUsers = users.filter(u => 
-    u.role === Role.USER &&
-    u.display_name.toLowerCase().includes(searchUser.toLowerCase())
+    u.rol === 'usuario' && 
+    `${u.nombre} ${u.apellidos}`.toLowerCase().includes(searchUser.toLowerCase())
   );
 
   return (
@@ -102,12 +143,12 @@ const CoordCalendar: React.FC<CoordCalendarProps> = ({ locations, users, shifts,
           const dayOfWeek = dateObj.getDay();
           
           let slotsVisibles: any[] = [];
-          if (dayOfWeek === 2 || dayOfWeek === 4) { // Martes o Jueves
+          if (dayOfWeek === 2 || dayOfWeek === 4) {
             slotsVisibles = [
               { id: 'm', label: 'Mañana', inicio: '10:30', fin: '12:30', type: 'manana' },
               { id: 't', label: 'Tarde', inicio: '17:30', fin: '19:30', type: 'tarde' }
             ];
-          } else if (dayOfWeek === 6) { // Sábado
+          } else if (dayOfWeek === 6) {
             slotsVisibles = [
               { id: 's1', label: 'Sábado (1)', inicio: '10:30', fin: '12:00', type: 'sabado' },
               { id: 's2', label: 'Sábado (2)', inicio: '12:00', fin: '13:30', type: 'sabado' }
@@ -128,12 +169,8 @@ const CoordCalendar: React.FC<CoordCalendarProps> = ({ locations, users, shifts,
               <div className="p-4 flex-1 space-y-6">
                 {slotsVisibles.map(slot => {
                   const slotKey = `${slot.inicio}-${slot.fin}`;
-                  const currentShiftsForSlot = (groupedShifts[lugar] && groupedShifts[lugar][slotKey]) || [];
-                  const firstShiftInSlot = currentShiftsForSlot[0]; // Asumimos que solo hay un Shift por slot/lugar/fecha
-
-                  if (!firstShiftInSlot) return null; // Si no hay turno definido para este slot, no mostrar
-
-                  const activeCount = assignments.filter(a => a.shift_id === firstShiftInSlot.id).length;
+                  const currentShifts = (groupedShifts[lugar] && groupedShifts[lugar][slotKey]) || [];
+                  const activeCount = currentShifts.filter(s => s.estado !== 'cancelado').length;
 
                   return (
                     <div key={slot.id} className="space-y-2">
@@ -145,9 +182,9 @@ const CoordCalendar: React.FC<CoordCalendarProps> = ({ locations, users, shifts,
                       </div>
 
                       <div className="p-2 rounded-2xl min-h-[80px] border border-dashed bg-slate-50/50 border-slate-200">
-                        {renderShiftAssignments(firstShiftInSlot.id)}
+                        {renderShiftUsers(currentShifts)}
                         <button 
-                          onClick={() => setShowAddModal({ lugar, franja: slot.type, inicio: slot.inicio, fin: slot.fin, shiftId: firstShiftInSlot.id })}
+                          onClick={() => setShowAddModal({ lugar, franja: slot.type, inicio: slot.inicio, fin: slot.fin })}
                           className="w-full py-2 mt-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all flex items-center justify-center gap-2"
                         >
                           <i className="fa-solid fa-plus-circle"></i>
@@ -198,10 +235,10 @@ const CoordCalendar: React.FC<CoordCalendarProps> = ({ locations, users, shifts,
                     className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-blue-50 border border-transparent hover:border-blue-100 transition-all text-left group"
                   >
                     <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                      <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.display_name.split(' ')[0]}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="av" className="w-full h-full object-cover" />
+                      <img src={u.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${u.avatarSeed || u.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`} alt="av" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{u.display_name}</p>
+                      <p className="text-sm font-bold text-slate-700 group-hover:text-blue-700">{u.nombre} {u.apellidos}</p>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{u.genero}</p>
                     </div>
                     <i className="fa-solid fa-plus-circle text-slate-200 group-hover:text-blue-500 transition-colors"></i>

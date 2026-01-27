@@ -1,110 +1,187 @@
 
-import { User, Shift, MonthlyAvailability, AppNotification, Gender } from '../types';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { User, Shift, MonthlyAvailability, AppNotification } from '../types';
 
-// Uso estricto de la variable de entorno para la conexión
-const MONGO_URI = process.env.MONGODB_URI || "mongodb+srv://Onlyflames:Qxb2XS2em2Xou0LO@cluster0.f77u9i2.mongodb.net/ppco_la_barbera";
+// Vite inyecta estas variables desde el entorno
+const rawUrl = process.env.SUPABASE_URL;
+const rawKey = process.env.SUPABASE_ANON_KEY;
 
-const FEMALE_NAMES = new Set([
-  "ABIGAIL", "ADELA", "ANA", "ANABEL", "ANDREA", "ARACELI", "BLANCA", "CONCHI", "DESI", 
-  "DOLY", "JACQUELINE", "JANINE", "JUANITA", "LIA", "MARI", "MAITE", "MANUELA", "MARTA", 
-  "MÍRIAM", "MÓNICA", "NOELIA", "OTILIA", "PALOMA", "PAQUI", "PATTY", "PAULA", "RAQUEL", 
-  "ROSA", "TOÑI"
-]);
+const cleanEnv = (val: any): string => {
+  if (!val) return '';
+  const s = String(val).trim();
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    return s.substring(1, s.length - 1);
+  }
+  return s;
+};
 
-const USER_SEED_NAMES = [
-  "ABIGAIL TORRES", "ADELA CARRILLO", "ANA VÍLCHEZ", "ANA GABRIELA JIMÉNEZ", "ANA CÁNOVAS",
-  "ANABEL LLAMAS", "ANDREA ORQUIN", "ARACELI GARRIDO", "AURELIO GARCÍA", "BARTOLOMÉ ROMERO",
-  "BLANCA CALVO", "CONCHI CÁNOVAS", "DANIEL LÓPEZ", "DEMETRIO MENESES", "DESI ZAMORA",
-  "DOLY ABELLÁN", "FERNANDO VÍLCHEZ", "JACQUELINE CARNEIRO", "JANINE GORDILLO", "JAVIER ESTRADA",
-  "JESÚS ROIG", "JONATHAN LLAMAS", "JONY LÓPEZ", "JORGE TORRES", "JOSÉ RAMÓN ORQUIN",
-  "JOSÉ MANUEL MONTES", "JOSÉ DEVESA", "JOSÉ CARNEIRO", "JUANITA ROMERO", "KEVIN BALLESTER",
-  "LEMUEL GORDILLO", "LIA LÓPEZ", "LITO CHEDA", "MARI CARMEN ORQUIN", "MAITE ROIG",
-  "MANUELA CRESCIMANNO", "MARI CHEDA", "MARTA LUCIA MORALES", "MÍRIAM DEVESA", "MISAEL GORDILLO",
-  "MÓNICA GARCÍA", "MÓNICA BALLESTER", "NATÁN ZAMORA", "NOELIA LÓPEZ", "OTILIA MONTES",
-  "PALOMA PÉREZ", "PAQUI ESTRADA", "PAQUI LEAL", "PARÍS ZAMORA", "PATTY CRESCIMANNO",
-  "PAULA ALGUACIL", "RAQUEL GORDILLO", "ROBERTO PÉREZ", "RODOLFO GONZÁLEZ", "ROSA BARBER",
-  "TOÑI ESCANERO", "TOÑI LÓPEZ"
-];
+const supabaseUrl = cleanEnv(rawUrl);
+const supabaseAnonKey = cleanEnv(rawKey);
 
-const USER_SEED: User[] = [
-  { id: 'admin-1', nombre: 'Coordinador', apellidos: 'General', rol: 'coordinador', activo: true, genero: 'masculino', avatarSeed: 'admin-1' },
-  ...USER_SEED_NAMES.map((name, i) => {
-    const parts = name.split(' ');
-    const firstName = parts[0];
-    const isFemale = FEMALE_NAMES.has(firstName.toUpperCase());
-    return {
-      id: `u-${i}`,
-      nombre: firstName,
-      apellidos: parts.slice(1).join(' '),
-      rol: 'usuario' as const,
-      activo: true,
-      genero: (isFemale ? 'femenino' : 'masculino') as Gender,
-      avatarSeed: firstName
-    };
-  })
-];
+export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http')) 
+  ? createClient(supabaseUrl, supabaseAnonKey) 
+  : null;
 
 class DB {
-  private get<T>(key: string, defaultValue: T): T {
-    const val = localStorage.getItem(`ppco_${key}`);
-    return val ? JSON.parse(val) : defaultValue;
+  isConfigured(): boolean {
+    return supabase !== null;
   }
 
-  private set<T>(key: string, value: T) {
-    localStorage.setItem(`ppco_${key}`, JSON.stringify(value));
+  async seedInitialAdmin(): Promise<User | null> {
+    if (!supabase) return null;
+    const admin: User = {
+      id: 'admin-1',
+      nombre: 'Coordinador',
+      apellidos: 'Barbera',
+      rol: 'coordinador',
+      activo: true,
+      genero: 'masculino',
+      avatarSeed: 'Coordinador'
+    };
+    const { error } = await supabase.from('users').upsert({
+      id: admin.id,
+      nombre: admin.nombre,
+      apellidos: admin.apellidos,
+      rol: admin.rol,
+      activo: admin.activo,
+      genero: admin.genero,
+      avatar_seed: admin.avatarSeed
+    });
+    if (error) { console.error('Error seeding admin:', error); return null; }
+    return admin;
   }
 
-  async syncToCloud() {
-    console.log(`Conectando a MongoDB Atlas...`);
-    const maskedUri = MONGO_URI.replace(/:([^@]+)@/, ":****@");
-    console.debug(`Remote Host: ${maskedUri}`);
-
-    try {
-      const dataToSync = {
-        users: this.getUsers(),
-        shifts: this.getShifts(),
-        availabilities: this.getAvailabilities(),
-        lastSync: new Date().toISOString()
-      };
-      console.log("Sincronizando con Atlas...", dataToSync);
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          console.log("¡Datos sincronizados en el clúster!");
-          resolve(true);
-        }, 1200);
-      });
-    } catch (error) {
-      console.error("Fallo en la conexión remota:", error);
-      throw error;
-    }
+  async getUsers(): Promise<User[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from('users').select('*').order('nombre');
+    if (error) { console.error('Error fetching users:', error); return []; }
+    return (data || []).map(u => ({
+      ...u,
+      avatarSeed: u.avatar_seed,
+      avatarUrl: u.avatar_url
+    })) as User[];
   }
 
-  getUsers(): User[] { return this.get('users', USER_SEED); }
-  setUsers(users: User[]) { this.set('users', users); }
-  
-  updateUser(updatedUser: User) {
-    const users = this.getUsers();
-    const newUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
-    this.setUsers(newUsers);
+  async updateUser(user: User) {
+    if (!supabase) return;
+    const dbUser = {
+      nombre: user.nombre,
+      apellidos: user.apellidos,
+      rol: user.rol,
+      activo: user.activo,
+      genero: user.genero,
+      avatar_seed: user.avatarSeed,
+      avatar_url: user.avatarUrl,
+      skills: user.skills || []
+    };
+    const { error } = await supabase.from('users').update(dbUser).eq('id', user.id);
+    if (error) console.error('Error updating user:', error);
   }
 
-  getShifts(): Shift[] { return this.get('shifts', []); }
-  setShifts(shifts: Shift[]) { this.set('shifts', shifts); }
-
-  getAvailabilities(): MonthlyAvailability[] { return this.get('availabilities', []); }
-  setAvailabilities(avs: MonthlyAvailability[]) { this.set('availabilities', avs); }
-
-  getNotifications(): AppNotification[] { return this.get('notifications', []); }
-  
-  setNotifications(notifs: AppNotification[]) { 
-    this.set('notifications', notifs); 
+  async setUsers(users: User[]) {
+    if (!supabase) return;
+    const dbUsers = users.map(u => ({
+      id: u.id,
+      nombre: u.nombre,
+      apellidos: u.apellidos,
+      rol: u.rol,
+      activo: u.activo,
+      genero: u.genero,
+      avatar_seed: u.avatarSeed,
+      avatar_url: u.avatarUrl
+    }));
+    const { error } = await supabase.from('users').upsert(dbUsers);
+    if (error) console.error('Error upserting users:', error);
   }
 
-  getCurrentUserId(): string | null { return localStorage.getItem('ppco_current_user_id'); }
-  setCurrentUserId(id: string) { localStorage.setItem('ppco_current_user_id', id); }
-  
+  async setCurrentUserId(id: string) {
+    localStorage.setItem('ppco_current_user_id', id);
+  }
+
+  getCurrentUserId(): string | null {
+    return localStorage.getItem('ppco_current_user_id');
+  }
+
   logout() {
     localStorage.removeItem('ppco_current_user_id');
+  }
+
+  async getShifts(): Promise<Shift[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from('shifts').select('*').order('fecha');
+    if (error) { console.error('Error fetching shifts:', error); return []; }
+    return (data || []).map(s => ({
+      ...s,
+      asignadoA: s.asignado_a,
+      motivoRechazo: s.motivo_rechazo
+    })) as Shift[];
+  }
+
+  async setShifts(shifts: Shift[]) {
+    if (!supabase) return;
+    const dbShifts = shifts.map(s => ({
+      id: s.id,
+      fecha: s.fecha,
+      inicio: s.inicio,
+      fin: s.fin,
+      lugar: s.lugar,
+      franja: s.franja,
+      estado: s.estado,
+      asignado_a: s.asignadoA,
+      motivo_rechazo: s.motivoRechazo
+    }));
+    const { error } = await supabase.from('shifts').upsert(dbShifts);
+    if (error) console.error('Error upserting shifts:', error);
+  }
+
+  async getAvailabilities(): Promise<MonthlyAvailability[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from('availabilities').select('*');
+    if (error) { console.error('Error fetching availabilities:', error); return []; }
+    return (data || []).map(a => ({
+      ...a,
+      idUsuario: a.id_usuario
+    })) as MonthlyAvailability[];
+  }
+
+  async setAvailabilities(avs: MonthlyAvailability[]) {
+    if (!supabase) return;
+    const dbAvs = avs.map(a => ({
+      id_usuario: a.idUsuario,
+      mes: a.mes,
+      semanas: a.semanas,
+      estado: a.estado,
+      timestamp: a.timestamp
+    }));
+    const { error } = await supabase.from('availabilities').upsert(dbAvs);
+    if (error) console.error('Error upserting availabilities:', error);
+  }
+
+  async getNotifications(): Promise<AppNotification[]> {
+    if (!supabase) return [];
+    const { data, error } = await supabase.from('notifications').select('*').order('timestamp', { ascending: false });
+    if (error) { console.error('Error fetching notifications:', error); return []; }
+    return (data || []).map(n => ({
+      ...n,
+      refTurnoId: n.ref_turno_id
+    })) as AppNotification[];
+  }
+
+  async setNotifications(notifs: AppNotification[]) {
+    if (!supabase) return;
+    const dbNotifs = notifs.map(n => ({
+      id: n.id,
+      tipo: n.tipo,
+      titulo: n.titulo,
+      cuerpo: n.cuerpo,
+      color: n.color,
+      ref_turno_id: n.refTurnoId,
+      destinatarios: n.destinatarios,
+      timestamp: n.timestamp,
+      leida: n.leida
+    }));
+    const { error } = await supabase.from('notifications').upsert(dbNotifs);
+    if (error) console.error('Error upserting notifications:', error);
   }
 }
 

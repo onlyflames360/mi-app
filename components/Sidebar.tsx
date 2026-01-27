@@ -1,46 +1,46 @@
+
 import React from 'react';
-import { Role, User, Notification } from '../types';
-import { NAV_ITEMS_COORD, NAV_ITEMS_USER } from '../constants.tsx';
+import { ViewType, Role, User } from '../types';
 
 interface SidebarProps {
-  currentView: string;
-  onViewChange: (v: string) => void;
+  currentView: ViewType;
+  onViewChange: (v: ViewType) => void;
   user: User;
-  onRoleSwitch: (r: Role) => void; // Mantener por si se necesita para otras demos, pero no se usará para Supabase
+  onRoleSwitch: (r: Role) => void;
   unreadCount: number;
   onLogout: () => void;
 }
 
 interface SidebarItem {
-  id: string;
+  id: ViewType;
   icon: string;
   label: string;
   badge?: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRoleSwitch, unreadCount, onLogout }) => {
-  const isCoord = user.role === Role.COORD;
+  const isCoord = user.rol === 'coordinador';
 
-  // Updated to match NAV_ITEMS_COORD and NAV_ITEMS_USER in constants.ts
   const userItems: SidebarItem[] = [
-    { id: 'home', icon: 'fa-calendar-check', label: 'Inicio' },
-    { id: 'availability', icon: 'fa-clock', label: 'Disponibilidad' },
-    { id: 'messages', icon: 'fa-comment-dots', label: 'Mensajes' },
-    { id: 'notifications', icon: 'fa-bell', label: 'Avisos', badge: unreadCount },
+    { id: ViewType.USER_TASKS, icon: 'fa-calendar-check', label: 'Tareas' },
+    { id: ViewType.USER_AVAILABILITY, icon: 'fa-clock', label: 'Disponibilidad' },
+    { id: ViewType.USER_MESSAGING, icon: 'fa-comment-dots', label: 'Mensajería' },
+    { id: ViewType.USER_PROFILE, icon: 'fa-circle-user', label: 'Perfil' },
+    { id: ViewType.USER_NOTIFICATIONS, icon: 'fa-bell', label: 'Notificaciones', badge: unreadCount },
   ];
 
   const coordItems: SidebarItem[] = [
-    { id: 'dashboard', icon: 'fa-layer-group', label: 'Inicio' },
-    { id: 'users', icon: 'fa-users', label: 'Usuarios' },
-    { id: 'planning', icon: 'fa-calendar-plus', label: 'Planificación' },
-    { id: 'alerts', icon: 'fa-bell', label: 'Alertas' },
-    { id: 'stats', icon: 'fa-chart-pie', label: 'Estadísticas' },
-    { id: 'comms', icon: 'fa-paper-plane', label: 'Mensajes' },
+    { id: ViewType.COORD_USERS, icon: 'fa-users', label: 'Usuarios' },
+    { id: ViewType.COORD_PLANNING, icon: 'fa-calendar-plus', label: 'Planificación' },
+    { id: ViewType.COORD_CALENDAR, icon: 'fa-calendar-days', label: 'Calendario' },
+    { id: ViewType.COORD_MESSAGING, icon: 'fa-paper-plane', label: 'Comunicación' },
+    { id: ViewType.COORD_NOTIFICATIONS, icon: 'fa-bell', label: 'Alertas', badge: unreadCount },
+    { id: ViewType.COORD_STATS, icon: 'fa-chart-pie', label: 'Estadísticas' },
   ];
 
   const items = isCoord ? coordItems : userItems;
 
-  const avatarUrl = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.display_name.split(' ')[0]}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+  const avatarUrl = user.avatarUrl || `https://api.dicebear.com/7.x/lorelei/svg?seed=${user.avatarSeed || user.nombre}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
 
   return (
     <aside className="w-20 md:w-64 bg-white border-r border-slate-200 h-screen flex flex-col sticky top-0 transition-all z-40">
@@ -56,7 +56,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
 
       <nav className="flex-1 p-4 space-y-2">
         {items.map(item => {
-          const isNotifItem = item.id === 'notifications' || item.id === 'alerts';
+          const isNotifItem = item.id === ViewType.USER_NOTIFICATIONS || item.id === ViewType.COORD_NOTIFICATIONS;
           const hasUnread = isNotifItem && unreadCount > 0;
           const isActive = currentView === item.id;
 
@@ -108,16 +108,28 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, user, onRo
           </div>
         )}
 
-        {/* Eliminado el selector de rol de demostración */}
+        <div className="hidden md:block bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Cambiar Rol (Demo)</p>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => onRoleSwitch('usuario')}
+              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.rol === 'usuario' ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+            >User</button>
+            <button 
+              onClick={() => onRoleSwitch('coordinador')}
+              className={`flex-1 py-1 text-[10px] font-bold rounded shadow-sm transition-colors ${user.rol === 'coordinador' ? 'bg-white text-slate-800 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
+            >Coord</button>
+          </div>
+        </div>
         
         <div className="flex items-center justify-between p-2 md:p-0">
-          <div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => onViewChange('home')}>
+          <div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => onViewChange(ViewType.USER_PROFILE)}>
             <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-sm">
               <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
             </div>
             <div className="hidden md:block overflow-hidden">
-              <p className="text-xs font-bold text-slate-800 truncate">{user.display_name}</p>
-              <p className="text-[10px] font-medium text-slate-400 uppercase">{user.role}</p>
+              <p className="text-xs font-bold text-slate-800 truncate">{user.nombre}</p>
+              <p className="text-[10px] font-medium text-slate-400 uppercase">{user.rol}</p>
             </div>
           </div>
           
